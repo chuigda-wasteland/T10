@@ -1,5 +1,8 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
+use std::sync::atomic::Ordering::SeqCst;
+
+use crate::pylon::{Ptr, GcInfo};
 
 pub enum Storage {
     VMOwned,
@@ -9,24 +12,6 @@ pub enum Storage {
 
 pub enum RustArgStrategy {
     Move, Copy, Share, MutShare
-}
-
-pub struct Ptr<'a> {
-    pub data: *mut (),
-    pub type_info: TypeId,
-    pub storage: Storage,
-    _phantom: PhantomData<&'a ()>
-}
-
-impl<'a> Ptr<'a> {
-    pub fn new(data: *mut (), type_info: TypeId, storage: Storage) -> Self {
-        Self {
-            data,
-            type_info,
-            storage,
-            _phantom: PhantomData::default()
-        }
-    }
 }
 
 pub trait RustCallable<'a> {
@@ -43,15 +28,18 @@ pub trait RustCallable<'a> {
         }
 
         for (arg, (param_type, param_strategy)) in args.iter().zip(param_spec.iter()) {
-            if arg.type_info != *param_type {
+            if arg.static_type_id() != *param_type {
                 return Err("incorrect argument type")
             }
 
-            let _: PhantomData<i32> = match (&arg.storage, param_strategy) {
-                (Storage::VMOwned, _) => PhantomData::default(),
-                (Storage::SharedWithHost, RustArgStrategy::Share) => PhantomData::default(),
-                (Storage::MutSharedWithHost, RustArgStrategy::Share) => PhantomData::default(),
-                (Storage::MutSharedWithHost, RustArgStrategy::MutShare) => PhantomData::default(),
+            let _: PhantomData<i32> = match (unsafe { arg.gc_info.load(SeqCst).as_ref().unwrap() },
+                                             param_strategy) {
+                (GcInfo::OnVMStack, RustArgStrategy::Share) => PhantomData::default(),
+                (GcInfo::OnVMStack, RustArgStrategy::MutShare) => PhantomData::default(),
+                (GcInfo::OnVMHeap, _) => PhantomData::default(),
+                (GcInfo::SharedWithHost, RustArgStrategy::Share) => PhantomData::default(),
+                (GcInfo::MutSharedWithHost, RustArgStrategy::Share) => PhantomData::default(),
+                (GcInfo::MutSharedWithHost, RustArgStrategy::MutShare) => PhantomData::default(),
                 _ => return Err("other lifetime error")
             };
         }
