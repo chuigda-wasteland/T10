@@ -12,7 +12,7 @@ pub enum RustArgStrategy {
 }
 
 pub struct Ptr<'a> {
-    data: *mut (),
+    pub data: *mut (),
     pub type_info: TypeId,
     pub storage: Storage,
     _phantom: PhantomData<&'a ()>
@@ -43,11 +43,11 @@ pub trait RustCallable<'a> {
         }
 
         for (arg, (param_type, param_strategy)) in args.iter().zip(param_spec.iter()) {
-            if arg.type_info() != param_type {
+            if arg.type_info != *param_type {
                 return Err("incorrect argument type")
             }
 
-            let _ = match (&arg.storage, param_strategy) {
+            let _: PhantomData<i32> = match (&arg.storage, param_strategy) {
                 (Storage::VMOwned, _) => PhantomData::default(),
                 (Storage::SharedWithHost, RustArgStrategy::Share) => PhantomData::default(),
                 (Storage::MutSharedWithHost, RustArgStrategy::Share) => PhantomData::default(),
