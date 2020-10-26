@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::sync::atomic::Ordering::SeqCst;
 
 use crate::pylon::{Ptr, GcInfo};
+use crate::tyck::TypeCheckInfo;
 
 pub enum Storage {
     VMOwned,
@@ -17,35 +18,46 @@ pub enum RustArgStrategy {
 pub trait RustCallable<'a> {
     fn is_unsafe(&self) -> bool;
 
-    fn param_specs(&self) -> &'static [(TypeId, RustArgStrategy)];
+    fn param_specs(&self) -> Vec<(TypeCheckInfo, RustArgStrategy)>;
 
-    unsafe fn call_prechecked(&self, args: &[Ptr<'a>]) -> Ptr<'a>;
+    fn return_value_spec(&self) -> (TypeCheckInfo, RustArgStrategy);
 
-    fn call(&self, args: &[Ptr<'a>]) -> Result<Ptr<'a>, &'static str> {
-        let param_spec = self.param_specs();
-        if param_spec.len() != args.len() {
-            return Err("incorrect argument count")
-        }
+    unsafe fn call_prechecked(&self, args: &'a [Ptr<'a>]) -> Ptr<'a>;
 
-        for (arg, (param_type, param_strategy)) in args.iter().zip(param_spec.iter()) {
-            if arg.static_type_id() != *param_type {
-                return Err("incorrect argument type")
-            }
+    fn call(&self,
+            _args: &'a [Ptr<'a>],
+            _ret_tyck_info: Option<TypeCheckInfo>) -> Result<Ptr<'a>, String> {
+        unimplemented!()
+    }
+}
 
-            let _: PhantomData<i32> = match (unsafe { arg.gc_info.load(SeqCst).as_ref().unwrap() },
-                                             param_strategy) {
-                (GcInfo::OnVMStack, RustArgStrategy::Share) => PhantomData::default(),
-                (GcInfo::OnVMStack, RustArgStrategy::MutShare) => PhantomData::default(),
-                (GcInfo::OnVMHeap, _) => PhantomData::default(),
-                (GcInfo::SharedWithHost, RustArgStrategy::Share) => PhantomData::default(),
-                (GcInfo::MutSharedWithHost, RustArgStrategy::Share) => PhantomData::default(),
-                (GcInfo::MutSharedWithHost, RustArgStrategy::MutShare) => PhantomData::default(),
-                _ => return Err("other lifetime error")
-            };
-        }
+pub struct RustCallBind2<A, B, RET, FN>
+    where A: 'static,
+          B: 'static,
+          RET: 'static,
+          FN: 'static + Fn(A, B) -> RET {
+    inner: FN,
+    _phantom: PhantomData<(A, B, RET)>
+}
 
-        unsafe {
-            Ok(self.call_prechecked(args))
-        }
+impl<'a, A, B, RET, FN> RustCallable<'a> for RustCallBind2<A, B, RET, FN>
+    where A: 'static,
+          B: 'static,
+          RET: 'static,
+          FN: 'static + Fn(A, B) -> RET {
+    fn is_unsafe(&self) -> bool {
+        false
+    }
+
+    fn param_specs(&self) -> Vec<(TypeCheckInfo, RustArgStrategy)> {
+        unimplemented!()
+    }
+
+    fn return_value_spec(&self) -> (TypeCheckInfo, RustArgStrategy) {
+        unimplemented!()
+    }
+
+    unsafe fn call_prechecked(&self, args: &'a [Ptr<'a>]) -> Ptr<'a> {
+        unimplemented!()
     }
 }

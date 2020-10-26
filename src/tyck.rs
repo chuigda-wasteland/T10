@@ -3,7 +3,7 @@ pub enum TypeCheckInfo {
     Container(std::any::TypeId, Vec<TypeCheckInfo>),
 }
 
-trait StaticBase {
+pub trait StaticBase {
     fn type_check(type_check_info: &TypeCheckInfo) -> bool;
 
     fn type_check_info() -> TypeCheckInfo;
