@@ -53,6 +53,28 @@ pub trait DynBase {
     unsafe fn inner_move(&self, maybe_uninit: *mut ());
 }
 
+impl<'a, T: 'static> DynBase for &'a T {
+    fn static_type_id(&self) -> TypeId {
+        TypeId::of::<T>()
+    }
+
+    fn static_type_name(&self) -> &'static str {
+        std::any::type_name::<T>()
+    }
+
+    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
+        <() as TypeCheckExtractor<T>>::type_check(tyck_info)
+    }
+
+    unsafe fn inner_ref(&self) -> *mut () {
+        unimplemented!()
+    }
+
+    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
+        unimplemented!()
+    }
+}
+
 pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
     pub inner: Cell<MaybeUninit<Ta>>,
     _phantom: PhantomData<&'a Ts>
@@ -97,62 +119,29 @@ impl<'a, Ta: 'a, Ts: 'static> StaticBase for Wrapper<'a, Ta, Ts> {
     }
 }
 
-pub struct RefWrapper<'a, 'b, Tb: 'b, Ts: 'static> {
-    inner: *mut Tb,
-    _phantom: PhantomData<(&'a Ts, &'b Tb)>
-}
-
-type StaticRefWrapper<'a, T> = RefWrapper<'a, 'static, T, T>;
-
-impl<'a, 'b, Tb: 'b, Ts: 'static> StaticBase for RefWrapper<'a, 'b, Tb, Ts> {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
-            *type_id == std::any::TypeId::of::<Ts>()
-        } else {
-            false
-        }
-    }
-
-    fn type_check_info() -> TypeCheckInfo {
-        TypeCheckInfo::SimpleType(std::any::TypeId::of::<Ts>())
-    }
-}
-
-impl<'a, 'b, Tb: 'b, Ts: 'static> DynBase for RefWrapper<'a, 'b, Tb, Ts> {
-    fn static_type_id(&self) -> TypeId {
-        TypeId::of::<Ts>()
-    }
-
-    fn static_type_name(&self) -> &'static str {
-        std::any::type_name::<Ts>()
-    }
-
-    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <Self as StaticBase>::type_check(tyck_info)
-    }
-
-    unsafe fn inner_ref(&self) -> *mut () {
-        self.inner as *mut ()
-    }
-
-    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
-        unreachable!("Lifetime checking should have failed")
-    }
-}
-
 pub trait TypeCheckExtractor<T: 'static> {
     fn type_check_info() -> TypeCheckInfo;
+
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool;
 }
 
 impl<T: 'static> TypeCheckExtractor<T> for () {
     default fn type_check_info() -> TypeCheckInfo {
         <() as TypeCheckExtractor<StaticWrapper<T>>>::type_check_info()
     }
+
+    default fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        <() as TypeCheckExtractor<StaticWrapper<T>>>::type_check(tyck_info)
+    }
 }
 
 impl<T: 'static + StaticBase> TypeCheckExtractor<T> for () {
     fn type_check_info() -> TypeCheckInfo {
         T::type_check_info()
+    }
+
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        T::type_check(tyck_info)
     }
 }
 

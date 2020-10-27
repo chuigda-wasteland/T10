@@ -9,6 +9,8 @@ pub trait StaticBase {
     fn type_check_info() -> TypeCheckInfo;
 }
 
+/*
+
 impl StaticBase for i64 {
     fn type_check(tyck_info: &TypeCheckInfo) -> bool {
         if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
@@ -41,3 +43,5 @@ impl<T: StaticBase> StaticBase for Vec<T> {
         )
     }
 }
+
+*/
