@@ -1,4 +1,5 @@
-#![allow(incomplete_feature)]
+#![allow(incomplete_features)]
+#![feature(associated_type_defaults)]
 #![feature(specialization)]
 
 pub mod func;

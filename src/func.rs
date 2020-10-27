@@ -1,3 +1,7 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 use std::any::TypeId;
 use std::marker::PhantomData;
 use std::sync::atomic::Ordering::SeqCst;
