@@ -53,6 +53,16 @@ pub trait DynBase {
     unsafe fn inner_move(&self, maybe_uninit: *mut ());
 }
 
+impl<'a, T: 'static> StaticBase for &'a T {
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        <() as TypeCheckExtractor<T>>::type_check(tyck_info)
+    }
+
+    fn type_check_info() -> TypeCheckInfo {
+        <() as TypeCheckExtractor<T>>::type_check_info()
+    }
+}
+
 impl<'a, T: 'static> DynBase for &'a T {
     fn static_type_id(&self) -> TypeId {
         TypeId::of::<T>()
@@ -63,15 +73,47 @@ impl<'a, T: 'static> DynBase for &'a T {
     }
 
     fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <() as TypeCheckExtractor<T>>::type_check(tyck_info)
+        <Self as StaticBase>::type_check(tyck_info)
     }
 
     unsafe fn inner_ref(&self) -> *mut () {
-        unimplemented!()
+        *self as *const T as *mut T as *mut ()
     }
 
     unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
-        unimplemented!()
+        unreachable!("should have been rejected by lifetime checker")
+    }
+}
+
+impl<'a, T: 'static> StaticBase for &'a mut T {
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        <() as TypeCheckExtractor<T>>::type_check(tyck_info)
+    }
+
+    fn type_check_info() -> TypeCheckInfo {
+        <() as TypeCheckExtractor<T>>::type_check_info()
+    }
+}
+
+impl<'a, T: 'static> DynBase for &'a mut T {
+    fn static_type_id(&self) -> TypeId {
+        TypeId::of::<T>()
+    }
+
+    fn static_type_name(&self) -> &'static str {
+        std::any::type_name::<T>()
+    }
+
+    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
+        <Self as StaticBase>::type_check(tyck_info)
+    }
+
+    unsafe fn inner_ref(&self) -> *mut () {
+        *self as *const T as *mut T as *mut ()
+    }
+
+    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
+        unreachable!("should have been rejected by lifetime checker")
     }
 }
 
