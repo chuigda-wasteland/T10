@@ -48,7 +48,7 @@ pub trait DynBase {
 
     fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool;
 
-    unsafe fn inner_ref(&self) -> *const ();
+    unsafe fn inner_ref(&self) -> *mut ();
 
     unsafe fn inner_move(&self, maybe_uninit: *mut ());
 }
@@ -70,10 +70,10 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 
     fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <Wrapper<'a, Ta, Ts> as StaticBase>::type_check(tyck_info)
+        <Self as StaticBase>::type_check(tyck_info)
     }
 
-    unsafe fn inner_ref(&self) -> *const () {
+    unsafe fn inner_ref(&self) -> *mut () {
         unimplemented!()
     }
 
@@ -92,8 +92,51 @@ impl<'a, Ta: 'a, Ts: 'static> StaticBase for Wrapper<'a, Ta, Ts> {
         }
     }
 
-    fn type_check_info  () -> TypeCheckInfo {
+    fn type_check_info() -> TypeCheckInfo {
         TypeCheckInfo::SimpleType(std::any::TypeId::of::<Ts>())
+    }
+}
+
+pub struct RefWrapper<'a, 'b, Tb: 'b, Ts: 'static> {
+    inner: *mut Tb,
+    _phantom: PhantomData<(&'a Ts, &'b Tb)>
+}
+
+type StaticRefWrapper<'a, T> = RefWrapper<'a, 'static, T, T>;
+
+impl<'a, 'b, Tb: 'b, Ts: 'static> StaticBase for RefWrapper<'a, 'b, Tb, Ts> {
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
+            *type_id == std::any::TypeId::of::<Ts>()
+        } else {
+            false
+        }
+    }
+
+    fn type_check_info() -> TypeCheckInfo {
+        TypeCheckInfo::SimpleType(std::any::TypeId::of::<Ts>())
+    }
+}
+
+impl<'a, 'b, Tb: 'b, Ts: 'static> DynBase for RefWrapper<'a, 'b, Tb, Ts> {
+    fn static_type_id(&self) -> TypeId {
+        TypeId::of::<Ts>()
+    }
+
+    fn static_type_name(&self) -> &'static str {
+        std::any::type_name::<Ts>()
+    }
+
+    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
+        <Self as StaticBase>::type_check(tyck_info)
+    }
+
+    unsafe fn inner_ref(&self) -> *mut () {
+        self.inner as *mut ()
+    }
+
+    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
+        unreachable!("Lifetime checking should have failed")
     }
 }
 

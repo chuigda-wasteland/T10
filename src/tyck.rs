@@ -4,14 +4,14 @@ pub enum TypeCheckInfo {
 }
 
 pub trait StaticBase {
-    fn type_check(type_check_info: &TypeCheckInfo) -> bool;
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool;
 
     fn type_check_info() -> TypeCheckInfo;
 }
 
 impl StaticBase for i64 {
-    fn type_check(type_check_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::SimpleType(type_id) = type_check_info {
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
             std::any::TypeId::of::<Self>() == *type_id
         } else {
             false
@@ -24,8 +24,8 @@ impl StaticBase for i64 {
 }
 
 impl<T: StaticBase> StaticBase for Vec<T> {
-    fn type_check(type_check_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::Container(container_type_id, params) = type_check_info {
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        if let TypeCheckInfo::Container(container_type_id, params) = tyck_info {
             std::any::TypeId::of::<Vec<()>>() == *container_type_id
                 && params.len() == 1
                 && T::type_check(&params[0])
