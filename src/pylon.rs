@@ -199,6 +199,12 @@ pub trait VMPtrToRustImpl<'a, T> {
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<Self::CastResult, String>;
 }
 
+pub trait VMPtrToRustImpl2<'a, T> {
+    type CastResult = T;
+
+    unsafe fn any_cast_impl2(ptr: PtrNonNull<'a>) -> Result<Self::CastResult, String>;
+}
+
 impl<'a, T> VMPtrToRust<'a, T> for () {
     default unsafe fn any_cast(ptr: Ptr<'a>) -> Result<T, String> {
         PtrNonNull::from_ptr(ptr).map_or_else(|| {
@@ -220,7 +226,25 @@ impl<'a, T> VMPtrToRust<'a, Option<T>> for () {
 }
 
 impl<'a, T> VMPtrToRustImpl<'a, T> for () {
-    default unsafe fn any_cast_impl(mut ptr: PtrNonNull<'a>) -> Result<T, String> {
+    default unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<T, String> {
+        <() as VMPtrToRustImpl2<'a, T>>::any_cast_impl2(ptr)
+    }
+}
+
+impl<'a, T: 'static> VMPtrToRustImpl<'a, &'a T> for () {
+    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a T, String> {
+        unimplemented!()
+    }
+}
+
+impl<'a, T: 'static> VMPtrToRustImpl<'a, &'a mut T> for () {
+    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a mut T, String> {
+        unimplemented!()
+    }
+}
+
+impl<'a, T> VMPtrToRustImpl2<'a, T> for () {
+    default unsafe fn any_cast_impl2(mut ptr: PtrNonNull<'a>) -> Result<T, String> {
         let r = ptr.gc_info.load(SeqCst).as_mut().unwrap();
         /*
         match *r {
@@ -235,8 +259,8 @@ impl<'a, T> VMPtrToRustImpl<'a, T> for () {
     }
 }
 
-impl<'a, T: Copy> VMPtrToRustImpl<'a, T> for () {
-    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<T, String> {
+impl<'a, T: Copy> VMPtrToRustImpl2<'a, T> for () {
+    unsafe fn any_cast_impl2(ptr: PtrNonNull<'a>) -> Result<T, String> {
         Ok((ptr.data.as_ref().inner_ref() as *const T).as_ref().unwrap().clone())
     }
 }
