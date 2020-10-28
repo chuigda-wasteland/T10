@@ -9,6 +9,37 @@ pub trait StaticBase {
     fn type_check_info() -> TypeCheckInfo;
 }
 
+impl<T: 'static> StaticBase for T {
+    default fn type_check(_tyck_info: &TypeCheckInfo) -> bool {
+        let _ = std::any::TypeId::of::<T>();
+        unimplemented!()
+    }
+
+    default fn type_check_info() -> TypeCheckInfo {
+        unimplemented!()
+    }
+}
+
+impl<T: 'static> StaticBase for &T {
+    fn type_check(_tyck_info: &TypeCheckInfo) -> bool {
+        unimplemented!()
+    }
+
+    fn type_check_info() -> TypeCheckInfo {
+        unimplemented!()
+    }
+}
+
+impl<T: 'static> StaticBase for &mut T {
+    fn type_check(_tyck_info: &TypeCheckInfo) -> bool {
+        unimplemented!()
+    }
+
+    fn type_check_info() -> TypeCheckInfo {
+        unimplemented!()
+    }
+}
+
 /*
 
 impl StaticBase for i64 {

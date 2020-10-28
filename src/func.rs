@@ -26,11 +26,11 @@ pub trait RustCallable<'a> {
 
     fn return_value_spec(&self) -> (TypeCheckInfo, RustArgStrategy);
 
-    unsafe fn call_prechecked(&self, args: &'a [Ptr<'a>]) -> Ptr<'a>;
+    unsafe fn call_prechecked(&self, args: &'a [Ptr]) -> Ptr;
 
     fn call(&self,
-            _args: &'a [Ptr<'a>],
-            _ret_tyck_info: Option<TypeCheckInfo>) -> Result<Ptr<'a>, String> {
+            _args: &'a [Ptr],
+            _ret_tyck_info: Option<TypeCheckInfo>) -> Result<Ptr, String> {
         unimplemented!()
     }
 }
@@ -61,7 +61,7 @@ impl<'a, A, B, RET, FN> RustCallable<'a> for RustCallBind2<A, B, RET, FN>
         unimplemented!()
     }
 
-    unsafe fn call_prechecked(&self, args: &'a [Ptr<'a>]) -> Ptr<'a> {
+    unsafe fn call_prechecked(&self, args: &'a [Ptr]) -> Ptr {
         unimplemented!()
     }
 }

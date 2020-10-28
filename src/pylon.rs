@@ -19,24 +19,21 @@ pub enum GcInfo {
     MovedToHost       = 4
 }
 
-pub struct Ptr<'a> {
+pub struct Ptr {
     pub gc_info: AtomicPtr<u8>,
-    pub data: *mut dyn DynBase,
-    _phantom: PhantomData<&'a ()>
+    pub data: *mut dyn DynBase
 }
 
-pub struct PtrNonNull<'a> {
+pub struct PtrNonNull {
     pub gc_info: AtomicPtr<u8>,
-    pub data: NonNull<dyn DynBase>,
-    _phantom: PhantomData<&'a ()>
+    pub data: NonNull<dyn DynBase>
 }
 
-impl<'a> PtrNonNull<'a> {
-    pub fn from_ptr(ptr: Ptr<'a>) -> Option<PtrNonNull<'a>> {
+impl PtrNonNull {
+    pub fn from_ptr(ptr: Ptr) -> Option<PtrNonNull> {
         Some(Self {
             gc_info: ptr.gc_info,
-            data: NonNull::new(ptr.data)?,
-            _phantom: ptr._phantom
+            data: NonNull::new(ptr.data)?
         })
     }
 }
@@ -53,17 +50,7 @@ pub trait DynBase {
     unsafe fn inner_move(&self, maybe_uninit: *mut ());
 }
 
-impl<'a, T: 'static> StaticBase for &'a T {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        <() as TypeCheckExtractor<T>>::type_check(tyck_info)
-    }
-
-    fn type_check_info() -> TypeCheckInfo {
-        <() as TypeCheckExtractor<T>>::type_check_info()
-    }
-}
-
-impl<'a, T: 'static> DynBase for &'a T {
+impl<'a, T: 'static> DynBase for *mut T {
     fn static_type_id(&self) -> TypeId {
         TypeId::of::<T>()
     }
@@ -73,43 +60,11 @@ impl<'a, T: 'static> DynBase for &'a T {
     }
 
     fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <Self as StaticBase>::type_check(tyck_info)
+        <T as StaticBase>::type_check(tyck_info)
     }
 
     unsafe fn inner_ref(&self) -> *mut () {
-        *self as *const T as *mut T as *mut ()
-    }
-
-    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
-        unreachable!("should have been rejected by lifetime checker")
-    }
-}
-
-impl<'a, T: 'static> StaticBase for &'a mut T {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        <() as TypeCheckExtractor<T>>::type_check(tyck_info)
-    }
-
-    fn type_check_info() -> TypeCheckInfo {
-        <() as TypeCheckExtractor<T>>::type_check_info()
-    }
-}
-
-impl<'a, T: 'static> DynBase for &'a mut T {
-    fn static_type_id(&self) -> TypeId {
-        TypeId::of::<T>()
-    }
-
-    fn static_type_name(&self) -> &'static str {
-        std::any::type_name::<T>()
-    }
-
-    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <Self as StaticBase>::type_check(tyck_info)
-    }
-
-    unsafe fn inner_ref(&self) -> *mut () {
-        *self as *const T as *mut T as *mut ()
+        *self as *mut ()
     }
 
     unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
@@ -134,7 +89,7 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 
     fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <Self as StaticBase>::type_check(tyck_info)
+        <StaticWrapper<Ts> as StaticBase>::type_check(tyck_info)
     }
 
     unsafe fn inner_ref(&self) -> *mut () {
@@ -147,66 +102,26 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 }
 
-impl<'a, Ta: 'a, Ts: 'static> StaticBase for Wrapper<'a, Ta, Ts> {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
-            *type_id == std::any::TypeId::of::<Ts>()
-        } else {
-            false
-        }
-    }
-
-    fn type_check_info() -> TypeCheckInfo {
-        TypeCheckInfo::SimpleType(std::any::TypeId::of::<Ts>())
-    }
-}
-
-pub trait TypeCheckExtractor<T: 'static> {
-    fn type_check_info() -> TypeCheckInfo;
-
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool;
-}
-
-impl<T: 'static> TypeCheckExtractor<T> for () {
-    default fn type_check_info() -> TypeCheckInfo {
-        <() as TypeCheckExtractor<StaticWrapper<T>>>::type_check_info()
-    }
-
-    default fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        <() as TypeCheckExtractor<StaticWrapper<T>>>::type_check(tyck_info)
-    }
-}
-
-impl<T: 'static + StaticBase> TypeCheckExtractor<T> for () {
-    fn type_check_info() -> TypeCheckInfo {
-        T::type_check_info()
-    }
-
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        T::type_check(tyck_info)
-    }
-}
-
-pub trait VMPtrToRust<'a, T> {
+pub trait VMPtrToRust<T> {
     type CastResult = T;
 
-    unsafe fn any_cast(ptr: Ptr<'a>) -> Result<Self::CastResult, String>;
+    unsafe fn any_cast(ptr: Ptr) -> Result<Self::CastResult, String>;
 }
 
-pub trait VMPtrToRustImpl<'a, T> {
+pub trait VMPtrToRustImpl<T> {
     type CastResult = T;
 
-    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<Self::CastResult, String>;
+    unsafe fn any_cast_impl(ptr: PtrNonNull) -> Result<Self::CastResult, String>;
 }
 
-pub trait VMPtrToRustImpl2<'a, T> {
+pub trait VMPtrToRustImpl2<T> {
     type CastResult = T;
 
-    unsafe fn any_cast_impl2(ptr: PtrNonNull<'a>) -> Result<Self::CastResult, String>;
+    unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<Self::CastResult, String>;
 }
 
-impl<'a, T> VMPtrToRust<'a, T> for () {
-    default unsafe fn any_cast(ptr: Ptr<'a>) -> Result<T, String> {
+impl<T> VMPtrToRust<T> for () {
+    default unsafe fn any_cast(ptr: Ptr) -> Result<T, String> {
         PtrNonNull::from_ptr(ptr).map_or_else(|| {
             Err("nullptr exception".to_string())
         }, |ptr| {
@@ -215,8 +130,8 @@ impl<'a, T> VMPtrToRust<'a, T> for () {
     }
 }
 
-impl<'a, T> VMPtrToRust<'a, Option<T>> for () {
-    unsafe fn any_cast(ptr: Ptr<'a>) -> Result<Option<T>, String> {
+impl<T> VMPtrToRust<Option<T>> for () {
+    unsafe fn any_cast(ptr: Ptr) -> Result<Option<T>, String> {
         PtrNonNull::from_ptr(ptr).map_or_else(|| {
             Ok(None)
         }, |ptr| {
@@ -225,26 +140,26 @@ impl<'a, T> VMPtrToRust<'a, Option<T>> for () {
     }
 }
 
-impl<'a, T> VMPtrToRustImpl<'a, T> for () {
-    default unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<T, String> {
-        <() as VMPtrToRustImpl2<'a, T>>::any_cast_impl2(ptr)
+impl<T> VMPtrToRustImpl<T> for () {
+    default unsafe fn any_cast_impl(ptr: PtrNonNull) -> Result<T, String> {
+        <() as VMPtrToRustImpl2<T>>::any_cast_impl2(ptr)
     }
 }
 
-impl<'a, T: 'static> VMPtrToRustImpl<'a, &'a T> for () {
-    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a T, String> {
+impl<'a, T> VMPtrToRustImpl<&'a T> for () {
+    unsafe fn any_cast_impl(ptr: PtrNonNull) -> Result<&'a T, String> {
         unimplemented!()
     }
 }
 
-impl<'a, T: 'static> VMPtrToRustImpl<'a, &'a mut T> for () {
-    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a mut T, String> {
+impl<'a, T> VMPtrToRustImpl<&'a mut T> for () {
+    unsafe fn any_cast_impl(ptr: PtrNonNull) -> Result<&'a mut T, String> {
         unimplemented!()
     }
 }
 
-impl<'a, T> VMPtrToRustImpl2<'a, T> for () {
-    default unsafe fn any_cast_impl2(mut ptr: PtrNonNull<'a>) -> Result<T, String> {
+impl<T> VMPtrToRustImpl2<T> for () {
+    default unsafe fn any_cast_impl2(mut ptr: PtrNonNull) -> Result<T, String> {
         let r = ptr.gc_info.load(SeqCst).as_mut().unwrap();
         /*
         match *r {
@@ -259,8 +174,8 @@ impl<'a, T> VMPtrToRustImpl2<'a, T> for () {
     }
 }
 
-impl<'a, T: Copy> VMPtrToRustImpl2<'a, T> for () {
-    unsafe fn any_cast_impl2(ptr: PtrNonNull<'a>) -> Result<T, String> {
+impl<T: Copy> VMPtrToRustImpl2<T> for () {
+    unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
         Ok((ptr.data.as_ref().inner_ref() as *const T).as_ref().unwrap().clone())
     }
 }
