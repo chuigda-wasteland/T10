@@ -3,6 +3,7 @@
 #![feature(specialization)]
 #![feature(maybe_uninit_extra)]
 #![feature(maybe_uninit_ref)]
+#![feature(negative_impls)]
 
 pub mod func;
 pub mod pylon;

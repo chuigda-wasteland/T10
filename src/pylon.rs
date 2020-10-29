@@ -1,12 +1,9 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+// use std::marker::PhantomData;
 use std::sync::atomic::AtomicPtr;
-use std::any::TypeId;
-use std::marker::PhantomData;
 use std::ptr::NonNull;
-use std::cell::Cell;
-use std::mem::MaybeUninit;
 use std::sync::atomic::Ordering::SeqCst;
 
 use crate::tyck::{StaticBase, TypeCheckInfo};
@@ -39,20 +36,25 @@ impl PtrNonNull {
 }
 
 pub trait DynBase {
-    fn static_type_id(&self) -> TypeId;
+    fn static_type_id(&self) -> std::any::TypeId;
 
     fn static_type_name(&self) -> &'static str;
 
     fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool;
 
-    unsafe fn inner_ref(&self) -> *mut ();
+    fn dyn_type_check_info(&self) -> TypeCheckInfo;
 
-    unsafe fn inner_move(&self, maybe_uninit: *mut ());
+    unsafe fn as_ptr(&self) -> *mut () {
+        self as *const Self as *mut Self as *mut ()
+    }
 }
 
-impl<'a, T: 'static> DynBase for *mut T {
-    fn static_type_id(&self) -> TypeId {
-        TypeId::of::<T>()
+// impl !DynBase for &T {}
+// impl !DynBase for &mut T {}
+
+impl<T: 'static> DynBase for T {
+    fn static_type_id(&self) -> std::any::TypeId {
+        std::any::TypeId::of::<T>()
     }
 
     fn static_type_name(&self) -> &'static str {
@@ -63,42 +65,8 @@ impl<'a, T: 'static> DynBase for *mut T {
         <T as StaticBase>::type_check(tyck_info)
     }
 
-    unsafe fn inner_ref(&self) -> *mut () {
-        *self as *mut ()
-    }
-
-    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
-        unreachable!("should have been rejected by lifetime checker")
-    }
-}
-
-pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
-    pub inner: Cell<MaybeUninit<Ta>>,
-    _phantom: PhantomData<&'a Ts>
-}
-
-pub type StaticWrapper<T> = Wrapper<'static, T, T>;
-
-impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
-    fn static_type_id(&self) -> TypeId {
-        TypeId::of::<Ts>()
-    }
-
-    fn static_type_name(&self) -> &'static str {
-        std::any::type_name::<Ts>()
-    }
-
-    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <StaticWrapper<Ts> as StaticBase>::type_check(tyck_info)
-    }
-
-    unsafe fn inner_ref(&self) -> *mut () {
-        unimplemented!()
-    }
-
-    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
-        let maybe_uninit = (maybe_uninit as *mut MaybeUninit<Ta>).as_mut().unwrap();
-        maybe_uninit.write(self.inner.replace(MaybeUninit::uninit()).assume_init());
+    fn dyn_type_check_info(&self) -> TypeCheckInfo {
+        <T as StaticBase>::type_check_info()
     }
 }
 
@@ -159,7 +127,7 @@ impl<'a, T> VMPtrToRustImpl<&'a mut T> for () {
 }
 
 impl<T> VMPtrToRustImpl2<T> for () {
-    default unsafe fn any_cast_impl2(mut ptr: PtrNonNull) -> Result<T, String> {
+    default unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
         let r = ptr.gc_info.load(SeqCst).as_mut().unwrap();
         /*
         match *r {
@@ -167,15 +135,18 @@ impl<T> VMPtrToRustImpl2<T> for () {
         }
         */
         *r = GcInfo::MovedToHost as u8;
-        let data = Box::from_raw(ptr.data.as_mut());
-        let mut ret = MaybeUninit::<T>::uninit();
-        data.inner_move(&mut ret as *mut MaybeUninit<T> as *mut ());
-        Ok(ret.assume_init())
+        // let data = Box::from_raw(ptr.data.as_mut());
+        // let mut ret = MaybeUninit::<T>::uninit();
+        // data.inner_move(&mut ret as *mut MaybeUninit<T> as *mut ());
+        // Ok(ret.assume_init())
+
+        todo!()
     }
 }
 
 impl<T: Copy> VMPtrToRustImpl2<T> for () {
-    unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
-        Ok((ptr.data.as_ref().inner_ref() as *const T).as_ref().unwrap().clone())
+    unsafe fn any_cast_impl2(_ptr: PtrNonNull) -> Result<T, String> {
+        // Ok((ptr.data.as_ref().inner_ref() as *const T).as_ref().unwrap().clone())
+        todo!()
     }
 }

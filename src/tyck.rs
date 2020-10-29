@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum TypeCheckInfo {
     SimpleType(std::any::TypeId),
     Container(std::any::TypeId, Vec<TypeCheckInfo>),
@@ -10,69 +11,48 @@ pub trait StaticBase {
 }
 
 impl<T: 'static> StaticBase for T {
-    default fn type_check(_tyck_info: &TypeCheckInfo) -> bool {
-        let _ = std::any::TypeId::of::<T>();
-        unimplemented!()
+    default fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
+            std::any::TypeId::of::<T>() == *type_id
+        } else {
+            false
+        }
     }
 
     default fn type_check_info() -> TypeCheckInfo {
-        unimplemented!()
+        TypeCheckInfo::SimpleType(std::any::TypeId::of::<T>())
     }
 }
 
 impl<T: 'static> StaticBase for &T {
-    fn type_check(_tyck_info: &TypeCheckInfo) -> bool {
-        unimplemented!()
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        <T as StaticBase>::type_check(tyck_info)
     }
 
     fn type_check_info() -> TypeCheckInfo {
-        unimplemented!()
+        <T as StaticBase>::type_check_info()
     }
 }
 
 impl<T: 'static> StaticBase for &mut T {
-    fn type_check(_tyck_info: &TypeCheckInfo) -> bool {
-        unimplemented!()
-    }
-
-    fn type_check_info() -> TypeCheckInfo {
-        unimplemented!()
-    }
-}
-
-/*
-
-impl StaticBase for i64 {
     fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
-            std::any::TypeId::of::<Self>() == *type_id
-        } else {
-            false
-        }
+        <T as StaticBase>::type_check(tyck_info)
     }
 
     fn type_check_info() -> TypeCheckInfo {
-        TypeCheckInfo::SimpleType(std::any::TypeId::of::<Self>())
+        <T as StaticBase>::type_check_info()
     }
 }
 
-impl<T: StaticBase> StaticBase for Vec<T> {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::Container(container_type_id, params) = tyck_info {
-            std::any::TypeId::of::<Vec<()>>() == *container_type_id
-                && params.len() == 1
-                && T::type_check(&params[0])
-        } else {
-            false
-        }
-    }
+#[cfg(test)]
+mod test {
+    use std::marker::PhantomData;
+    use crate::tyck::StaticBase;
 
-    fn type_check_info() -> TypeCheckInfo {
-        TypeCheckInfo::Container(
-            std::any::TypeId::of::<Vec<()>>(),
-            vec![T::type_check_info()]
-        )
+    #[test]
+    fn test1<'b>() {
+        struct S<'a> { _phantom: PhantomData<&'a ()> }
+        let tyck_info = <&'b S<'static> as StaticBase>::type_check_info();
+        eprintln!("{:?}", tyck_info)
     }
 }
-
-*/
