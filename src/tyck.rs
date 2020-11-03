@@ -1,3 +1,5 @@
+use crate::func::RustArgLifetime;
+
 #[derive(Debug)]
 pub enum TypeCheckInfo {
     SimpleType(std::any::TypeId),
@@ -8,6 +10,24 @@ pub trait StaticBase {
     fn type_check(tyck_info: &TypeCheckInfo) -> bool;
 
     fn tyck_info() -> TypeCheckInfo;
+
+    fn lifetime_info() -> RustArgLifetime;
+}
+
+trait LIE<T> {
+    fn ltii() -> RustArgLifetime;
+}
+
+impl<T> LIE<T> for () {
+    default fn ltii() -> RustArgLifetime {
+        RustArgLifetime::Move
+    }
+}
+
+impl<T: Copy> LIE<T> for () {
+    fn ltii() -> RustArgLifetime {
+        RustArgLifetime::Copy
+    }
 }
 
 impl<T: 'static> StaticBase for T {
@@ -22,6 +42,10 @@ impl<T: 'static> StaticBase for T {
     default fn tyck_info() -> TypeCheckInfo {
         TypeCheckInfo::SimpleType(std::any::TypeId::of::<T>())
     }
+
+    default fn lifetime_info() -> RustArgLifetime {
+        <() as LIE<T>>::ltii()
+    }
 }
 
 impl<T: 'static> StaticBase for &T {
@@ -32,6 +56,10 @@ impl<T: 'static> StaticBase for &T {
     fn tyck_info() -> TypeCheckInfo {
         <T as StaticBase>::tyck_info()
     }
+
+    fn lifetime_info() -> RustArgLifetime {
+        RustArgLifetime::Share
+    }
 }
 
 impl<T: 'static> StaticBase for &mut T {
@@ -41,6 +69,10 @@ impl<T: 'static> StaticBase for &mut T {
 
     fn tyck_info() -> TypeCheckInfo {
         <T as StaticBase>::tyck_info()
+    }
+
+    fn lifetime_info() -> RustArgLifetime {
+        RustArgLifetime::MutShare
     }
 }
 

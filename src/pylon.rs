@@ -7,6 +7,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::Ordering::SeqCst;
 
 use crate::tyck::{StaticBase, TypeCheckInfo};
+use crate::func::RustArgLifetime;
 
 pub enum GcInfo {
     OnVMStack         = 0,
@@ -16,10 +17,53 @@ pub enum GcInfo {
     MovedToHost       = 4
 }
 
+impl GcInfo {
+    pub fn from_u8(src: u8) -> GcInfo {
+        match src {
+            0 => GcInfo::OnVMStack,
+            1 => GcInfo::OnVMHeap,
+            2 => GcInfo::SharedWithHost,
+            3 => GcInfo::MutSharedWithHost,
+            4 => GcInfo::MovedToHost,
+            _ => unreachable!()
+        }
+    }
+}
+
 pub struct Ptr<'a> {
     pub gc_info: AtomicPtr<u8>,
     pub data: *mut dyn DynBase,
     _phantom: PhantomData<&'a ()>
+}
+
+impl<'a> Clone for Ptr<'a> {
+    fn clone(&self) -> Self {
+        Self {
+            gc_info: AtomicPtr::new(self.gc_info.load(SeqCst)),
+            data: self.data,
+            _phantom: self._phantom
+        }
+    }
+}
+
+impl<'a> Ptr<'a> {
+    pub fn lifetime_check(&self, lifetime: &RustArgLifetime) -> bool {
+        match (GcInfo::from_u8(unsafe{*self.gc_info.load(SeqCst)}), lifetime) {
+            (GcInfo::OnVMStack, RustArgLifetime::Share) => true,
+            (GcInfo::OnVMStack, RustArgLifetime::MutShare) => true,
+            (GcInfo::OnVMStack, RustArgLifetime::Copy) => true,
+            (GcInfo::OnVMStack, RustArgLifetime::Move) =>
+                unimplemented!("items on stack should be Copy"),
+            (GcInfo::OnVMHeap, RustArgLifetime::Share) => true,
+            (GcInfo::OnVMHeap, RustArgLifetime::MutShare) => true,
+            (GcInfo::OnVMHeap, RustArgLifetime::Copy) => true,
+            (GcInfo::OnVMHeap, RustArgLifetime::Move) => true,
+            (GcInfo::SharedWithHost, RustArgLifetime::Copy) => true,
+            (GcInfo::SharedWithHost, RustArgLifetime::Share) => true,
+            (GcInfo::MutSharedWithHost, RustArgLifetime::Copy) => true,
+            _ => false
+        }
+    }
 }
 
 pub struct PtrNonNull<'a> {
@@ -79,13 +123,13 @@ pub trait VMPtrToRust<'a, T: 'a> {
     unsafe fn any_cast(ptr: Ptr<'a>) -> Result<Self::CastResult, String>;
 }
 
-pub trait VMPtrToRustImpl<'a, T: 'a> {
+trait VMPtrToRustImpl<'a, T: 'a> {
     type CastResult = T;
 
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<Self::CastResult, String>;
 }
 
-pub trait VMPtrToRustImpl2<'a, T: 'a> {
+trait VMPtrToRustImpl2<'a, T: 'a> {
     type CastResult = T;
 
     unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<Self::CastResult, String>;
