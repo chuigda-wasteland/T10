@@ -15,6 +15,7 @@ pub enum GcInfo {
     SharedWithHost = 2,
     MutSharedWithHost = 3,
     MovedToHost = 4,
+    Dropped = 5
 }
 
 impl GcInfo {
@@ -25,6 +26,7 @@ impl GcInfo {
             2 => GcInfo::SharedWithHost,
             3 => GcInfo::MutSharedWithHost,
             4 => GcInfo::MovedToHost,
+            5 => GcInfo::Dropped,
             _ => unreachable!()
         }
     }
@@ -58,7 +60,8 @@ pub fn lifetime_check(gc_info: &GcInfo, lifetime: &RustArgLifetime) -> Result<()
         (GcInfo::MutSharedWithHost, RustArgLifetime::MutShare) =>
             Err("cannot mutably share item twice".to_string()),
 
-        (GcInfo::MovedToHost, _) => Err("operating an moved item".to_string())
+        (GcInfo::MovedToHost, _) => Err("operating an moved item".to_string()),
+        (GcInfo::Dropped, _) => unreachable!("cannot use a dropped item")
     }
 }
 
@@ -179,37 +182,32 @@ impl<'a, T: 'a> VMPtrToRustImpl<'a, T> for () {
 
 impl<'a, T: 'a> VMPtrToRustImpl<'a, &'a T> for () {
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a T, String> {
-        unimplemented!()
+        let r = GcInfo::from_u8(*ptr.gc_info.load(SeqCst));
+        lifetime_check(&r, &RustArgLifetime::Share)?;
+        Ok((ptr.data.as_ptr() as *mut T).as_ref().unwrap())
     }
 }
 
 impl<'a, T: 'a> VMPtrToRustImpl<'a, &'a mut T> for () {
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a mut T, String> {
-        unimplemented!()
+        let r = GcInfo::from_u8(*ptr.gc_info.load(SeqCst));
+        lifetime_check(&r, &RustArgLifetime::MutShare)?;
+        Ok((ptr.data.as_ptr() as *mut T).as_mut().unwrap())
     }
 }
 
 impl<'a, T: 'a> VMPtrToRustImpl2<'a, T> for () {
     default unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
-        let r = ptr.gc_info.load(SeqCst).as_mut().unwrap();
-        /*
-        match *r {
-            // should match lifetimes here
-        }
-        */
-        *r = GcInfo::MovedToHost as u8;
-        // let data = Box::from_raw(ptr.data.as_mut());
-        // let mut ret = MaybeUninit::<T>::uninit();
-        // data.inner_move(&mut ret as *mut MaybeUninit<T> as *mut ());
-        // Ok(ret.assume_init())
-
-        todo!()
+        let r = GcInfo::from_u8(*ptr.gc_info.load(SeqCst));
+        lifetime_check(&r, &RustArgLifetime::Move)?;
+        Ok(*Box::from_raw(ptr.data.as_ptr() as *mut T))
     }
 }
 
 impl<'a, T: 'a + Copy> VMPtrToRustImpl2<'a, T> for () {
-    unsafe fn any_cast_impl2(_ptr: PtrNonNull) -> Result<T, String> {
-        // Ok((ptr.data.as_ref().inner_ref() as *const T).as_ref().unwrap().clone())
-        todo!()
+    unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
+        let r = GcInfo::from_u8(*ptr.gc_info.load(SeqCst));
+        lifetime_check(&r, &RustArgLifetime::Copy)?;
+        Ok(*(ptr.data.as_ptr() as *mut T).as_ref().unwrap())
     }
 }

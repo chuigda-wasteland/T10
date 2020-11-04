@@ -33,7 +33,8 @@ pub trait RustCallable<'a> {
 
     fn call(&self,
             args: &'a [Ptr<'a>],
-            ret_tyck_info: Option<TypeCheckInfo>) -> Result<Ptr<'a>, String>
+            ret_tyck_info: Option<TypeCheckInfo>)
+        -> Result<Ptr<'a>, String>
     {
         let param_specs = self.param_specs();
 
