@@ -1,34 +1,87 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::sync::atomic::AtomicPtr;
-use std::any::TypeId;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
-use std::cell::Cell;
-use std::mem::MaybeUninit;
+use std::sync::atomic::AtomicPtr;
 use std::sync::atomic::Ordering::SeqCst;
 
+use crate::func::RustArgLifetime;
 use crate::tyck::{StaticBase, TypeCheckInfo};
 
 pub enum GcInfo {
-    OnVMStack         = 0,
-    OnVMHeap          = 1,
-    SharedWithHost    = 2,
+    OnVMStack = 0,
+    OnVMHeap = 1,
+    SharedWithHost = 2,
     MutSharedWithHost = 3,
-    MovedToHost       = 4
+    MovedToHost = 4,
+}
+
+impl GcInfo {
+    pub fn from_u8(src: u8) -> GcInfo {
+        match src {
+            0 => GcInfo::OnVMStack,
+            1 => GcInfo::OnVMHeap,
+            2 => GcInfo::SharedWithHost,
+            3 => GcInfo::MutSharedWithHost,
+            4 => GcInfo::MovedToHost,
+            _ => unreachable!()
+        }
+    }
+}
+
+pub fn lifetime_check(gc_info: &GcInfo, lifetime: &RustArgLifetime) -> Result<(), String> {
+    match (gc_info, lifetime) {
+        (GcInfo::OnVMStack, RustArgLifetime::Share) => Ok(()),
+        (GcInfo::OnVMStack, RustArgLifetime::MutShare) => Ok(()),
+        (GcInfo::OnVMStack, RustArgLifetime::Copy) => Ok(()),
+        (GcInfo::OnVMStack, RustArgLifetime::Move) =>
+            unreachable!("items on stack should be Copy"),
+
+        (GcInfo::OnVMHeap, RustArgLifetime::Share) => Ok(()),
+        (GcInfo::OnVMHeap, RustArgLifetime::MutShare) => Ok(()),
+        (GcInfo::OnVMHeap, RustArgLifetime::Copy) => Ok(()),
+        (GcInfo::OnVMHeap, RustArgLifetime::Move) => Ok(()),
+
+        (GcInfo::SharedWithHost, RustArgLifetime::Copy) => Ok(()),
+        (GcInfo::SharedWithHost, RustArgLifetime::Share) => Ok(()),
+        (GcInfo::SharedWithHost, RustArgLifetime::Move) =>
+            Err("cannot move shared item".to_string()),
+        (GcInfo::SharedWithHost, RustArgLifetime::MutShare) =>
+            Err("cannot mutably share an immutably shared item".to_string()),
+
+        (GcInfo::MutSharedWithHost, RustArgLifetime::Copy) => Ok(()),
+        (GcInfo::MutSharedWithHost, RustArgLifetime::Move) =>
+            Err("cannot move shared item".to_string()),
+        (GcInfo::MutSharedWithHost, RustArgLifetime::Share) =>
+            Err("cannot immutably share a mutably shared item".to_string()),
+        (GcInfo::MutSharedWithHost, RustArgLifetime::MutShare) =>
+            Err("cannot mutably share item twice".to_string()),
+
+        (GcInfo::MovedToHost, _) => Err("operating an moved item".to_string())
+    }
 }
 
 pub struct Ptr<'a> {
     pub gc_info: AtomicPtr<u8>,
     pub data: *mut dyn DynBase,
-    _phantom: PhantomData<&'a ()>
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl<'a> Clone for Ptr<'a> {
+    fn clone(&self) -> Self {
+        Self {
+            gc_info: AtomicPtr::new(self.gc_info.load(SeqCst)),
+            data: self.data,
+            _phantom: self._phantom,
+        }
+    }
 }
 
 pub struct PtrNonNull<'a> {
     pub gc_info: AtomicPtr<u8>,
     pub data: NonNull<dyn DynBase>,
-    _phantom: PhantomData<&'a ()>
+    _phantom: PhantomData<&'a ()>,
 }
 
 impl<'a> PtrNonNull<'a> {
@@ -36,160 +89,108 @@ impl<'a> PtrNonNull<'a> {
         Some(Self {
             gc_info: ptr.gc_info,
             data: NonNull::new(ptr.data)?,
-            _phantom: ptr._phantom
+            _phantom: PhantomData::default(),
         })
     }
 }
 
 pub trait DynBase {
-    fn static_type_id(&self) -> TypeId;
+    fn dyn_type_id(&self) -> std::any::TypeId;
 
-    fn static_type_name(&self) -> &'static str;
+    fn dyn_type_name(&self) -> &'static str;
 
     fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool;
 
-    unsafe fn inner_ref(&self) -> *mut ();
+    fn dyn_tyck_info(&self) -> TypeCheckInfo;
 
-    unsafe fn inner_move(&self, maybe_uninit: *mut ());
+    unsafe fn as_ptr(&self) -> *mut () {
+        self as *const Self as *mut Self as *mut ()
+    }
 }
 
-pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
-    pub inner: Cell<MaybeUninit<Ta>>,
-    _phantom: PhantomData<&'a Ts>
-}
+// impl !DynBase for &T {}
+// impl !DynBase for &mut T {}
 
-pub type StaticWrapper<T> = Wrapper<'static, T, T>;
-
-impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
-    fn static_type_id(&self) -> TypeId {
-        TypeId::of::<Ts>()
+impl<T: 'static> DynBase for T {
+    fn dyn_type_id(&self) -> std::any::TypeId {
+        std::any::TypeId::of::<T>()
     }
 
-    fn static_type_name(&self) -> &'static str {
-        std::any::type_name::<Ts>()
+    fn dyn_type_name(&self) -> &'static str {
+        std::any::type_name::<T>()
     }
 
     fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <Self as StaticBase>::type_check(tyck_info)
+        <T as StaticBase>::type_check(tyck_info)
     }
 
-    unsafe fn inner_ref(&self) -> *mut () {
-        unimplemented!()
-    }
-
-    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
-        let maybe_uninit = (maybe_uninit as *mut MaybeUninit<Ta>).as_mut().unwrap();
-        maybe_uninit.write(self.inner.replace(MaybeUninit::uninit()).assume_init());
+    fn dyn_tyck_info(&self) -> TypeCheckInfo {
+        <T as StaticBase>::tyck_info()
     }
 }
 
-impl<'a, Ta: 'a, Ts: 'static> StaticBase for Wrapper<'a, Ta, Ts> {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
-            *type_id == std::any::TypeId::of::<Ts>()
-        } else {
-            false
-        }
-    }
-
-    fn type_check_info() -> TypeCheckInfo {
-        TypeCheckInfo::SimpleType(std::any::TypeId::of::<Ts>())
-    }
+pub trait VMPtrFromRust<'a, T: 'a> {
+    unsafe fn from_any(t: T) -> Result<Ptr<'a>, String>;
 }
 
-pub struct RefWrapper<'a, 'b, Tb: 'b, Ts: 'static> {
-    inner: *mut Tb,
-    _phantom: PhantomData<(&'a Ts, &'b Tb)>
-}
-
-type StaticRefWrapper<'a, T> = RefWrapper<'a, 'static, T, T>;
-
-impl<'a, 'b, Tb: 'b, Ts: 'static> StaticBase for RefWrapper<'a, 'b, Tb, Ts> {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
-            *type_id == std::any::TypeId::of::<Ts>()
-        } else {
-            false
-        }
-    }
-
-    fn type_check_info() -> TypeCheckInfo {
-        TypeCheckInfo::SimpleType(std::any::TypeId::of::<Ts>())
-    }
-}
-
-impl<'a, 'b, Tb: 'b, Ts: 'static> DynBase for RefWrapper<'a, 'b, Tb, Ts> {
-    fn static_type_id(&self) -> TypeId {
-        TypeId::of::<Ts>()
-    }
-
-    fn static_type_name(&self) -> &'static str {
-        std::any::type_name::<Ts>()
-    }
-
-    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
-        <Self as StaticBase>::type_check(tyck_info)
-    }
-
-    unsafe fn inner_ref(&self) -> *mut () {
-        self.inner as *mut ()
-    }
-
-    unsafe fn inner_move(&self, maybe_uninit: *mut ()) {
-        unreachable!("Lifetime checking should have failed")
-    }
-}
-
-pub trait TypeCheckExtractor<T: 'static> {
-    fn type_check_info() -> TypeCheckInfo;
-}
-
-impl<T: 'static> TypeCheckExtractor<T> for () {
-    default fn type_check_info() -> TypeCheckInfo {
-        <() as TypeCheckExtractor<StaticWrapper<T>>>::type_check_info()
-    }
-}
-
-impl<T: 'static + StaticBase> TypeCheckExtractor<T> for () {
-    fn type_check_info() -> TypeCheckInfo {
-        T::type_check_info()
-    }
-}
-
-pub trait VMPtrToRust<'a, T> {
+pub trait VMPtrToRust<'a, T: 'a> {
     type CastResult = T;
 
     unsafe fn any_cast(ptr: Ptr<'a>) -> Result<Self::CastResult, String>;
 }
 
-pub trait VMPtrToRustImpl<'a, T> {
+trait VMPtrToRustImpl<'a, T: 'a> {
     type CastResult = T;
 
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<Self::CastResult, String>;
 }
 
-impl<'a, T> VMPtrToRust<'a, T> for () {
+trait VMPtrToRustImpl2<'a, T: 'a> {
+    type CastResult = T;
+
+    unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<Self::CastResult, String>;
+}
+
+impl<'a, T: 'a> VMPtrToRust<'a, T> for () {
     default unsafe fn any_cast(ptr: Ptr<'a>) -> Result<T, String> {
         PtrNonNull::from_ptr(ptr).map_or_else(|| {
             Err("nullptr exception".to_string())
         }, |ptr| {
-            <() as VMPtrToRustImpl<T>>::any_cast_impl(ptr)
+            <() as VMPtrToRustImpl<'a, T>>::any_cast_impl(ptr)
         })
     }
 }
 
-impl<'a, T> VMPtrToRust<'a, Option<T>> for () {
+impl<'a, T: 'a> VMPtrToRust<'a, Option<T>> for () {
     unsafe fn any_cast(ptr: Ptr<'a>) -> Result<Option<T>, String> {
         PtrNonNull::from_ptr(ptr).map_or_else(|| {
             Ok(None)
         }, |ptr| {
-            Ok(Some(<() as VMPtrToRustImpl<T>>::any_cast_impl(ptr)?))
+            Ok(Some(<() as VMPtrToRustImpl<'a, T>>::any_cast_impl(ptr)?))
         })
     }
 }
 
-impl<'a, T> VMPtrToRustImpl<'a, T> for () {
-    default unsafe fn any_cast_impl(mut ptr: PtrNonNull<'a>) -> Result<T, String> {
+impl<'a, T: 'a> VMPtrToRustImpl<'a, T> for () {
+    default unsafe fn any_cast_impl(ptr: PtrNonNull) -> Result<T, String> {
+        <() as VMPtrToRustImpl2<'a, T>>::any_cast_impl2(ptr)
+    }
+}
+
+impl<'a, T: 'a> VMPtrToRustImpl<'a, &'a T> for () {
+    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a T, String> {
+        unimplemented!()
+    }
+}
+
+impl<'a, T: 'a> VMPtrToRustImpl<'a, &'a mut T> for () {
+    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a mut T, String> {
+        unimplemented!()
+    }
+}
+
+impl<'a, T: 'a> VMPtrToRustImpl2<'a, T> for () {
+    default unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
         let r = ptr.gc_info.load(SeqCst).as_mut().unwrap();
         /*
         match *r {
@@ -197,15 +198,18 @@ impl<'a, T> VMPtrToRustImpl<'a, T> for () {
         }
         */
         *r = GcInfo::MovedToHost as u8;
-        let data = Box::from_raw(ptr.data.as_mut());
-        let mut ret = MaybeUninit::<T>::uninit();
-        data.inner_move(&mut ret as *mut MaybeUninit<T> as *mut ());
-        Ok(ret.assume_init())
+        // let data = Box::from_raw(ptr.data.as_mut());
+        // let mut ret = MaybeUninit::<T>::uninit();
+        // data.inner_move(&mut ret as *mut MaybeUninit<T> as *mut ());
+        // Ok(ret.assume_init())
+
+        todo!()
     }
 }
 
-impl<'a, T: Copy> VMPtrToRustImpl<'a, T> for () {
-    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<T, String> {
-        Ok((ptr.data.as_ref().inner_ref() as *const T).as_ref().unwrap().clone())
+impl<'a, T: 'a + Copy> VMPtrToRustImpl2<'a, T> for () {
+    unsafe fn any_cast_impl2(_ptr: PtrNonNull) -> Result<T, String> {
+        // Ok((ptr.data.as_ref().inner_ref() as *const T).as_ref().unwrap().clone())
+        todo!()
     }
 }

@@ -1,3 +1,6 @@
+use crate::func::RustArgLifetime;
+
+#[derive(Debug)]
 pub enum TypeCheckInfo {
     SimpleType(std::any::TypeId),
     Container(std::any::TypeId, Vec<TypeCheckInfo>),
@@ -6,38 +9,83 @@ pub enum TypeCheckInfo {
 pub trait StaticBase {
     fn type_check(tyck_info: &TypeCheckInfo) -> bool;
 
-    fn type_check_info() -> TypeCheckInfo;
+    fn tyck_info() -> TypeCheckInfo;
+
+    fn lifetime_info() -> RustArgLifetime;
 }
 
-impl StaticBase for i64 {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+trait StaticBaseImpl<T> {
+    fn lifetime_info_impl() -> RustArgLifetime;
+}
+
+impl<T> StaticBaseImpl<T> for () {
+    default fn lifetime_info_impl() -> RustArgLifetime {
+        RustArgLifetime::Move
+    }
+}
+
+impl<T: Copy> StaticBaseImpl<T> for () {
+    fn lifetime_info_impl() -> RustArgLifetime {
+        RustArgLifetime::Copy
+    }
+}
+
+impl<T: 'static> StaticBase for T {
+    default fn type_check(tyck_info: &TypeCheckInfo) -> bool {
         if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
-            std::any::TypeId::of::<Self>() == *type_id
+            std::any::TypeId::of::<T>() == *type_id
         } else {
             false
         }
     }
 
-    fn type_check_info() -> TypeCheckInfo {
-        TypeCheckInfo::SimpleType(std::any::TypeId::of::<Self>())
+    default fn tyck_info() -> TypeCheckInfo {
+        TypeCheckInfo::SimpleType(std::any::TypeId::of::<T>())
+    }
+
+    default fn lifetime_info() -> RustArgLifetime {
+        <() as StaticBaseImpl<T>>::lifetime_info_impl()
     }
 }
 
-impl<T: StaticBase> StaticBase for Vec<T> {
+impl<T: 'static> StaticBase for &T {
     fn type_check(tyck_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::Container(container_type_id, params) = tyck_info {
-            std::any::TypeId::of::<Vec<()>>() == *container_type_id
-                && params.len() == 1
-                && T::type_check(&params[0])
-        } else {
-            false
-        }
+        <T as StaticBase>::type_check(tyck_info)
     }
 
-    fn type_check_info() -> TypeCheckInfo {
-        TypeCheckInfo::Container(
-            std::any::TypeId::of::<Vec<()>>(),
-            vec![T::type_check_info()]
-        )
+    fn tyck_info() -> TypeCheckInfo {
+        <T as StaticBase>::tyck_info()
+    }
+
+    fn lifetime_info() -> RustArgLifetime {
+        RustArgLifetime::Share
+    }
+}
+
+impl<T: 'static> StaticBase for &mut T {
+    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+        <T as StaticBase>::type_check(tyck_info)
+    }
+
+    fn tyck_info() -> TypeCheckInfo {
+        <T as StaticBase>::tyck_info()
+    }
+
+    fn lifetime_info() -> RustArgLifetime {
+        RustArgLifetime::MutShare
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::marker::PhantomData;
+
+    use crate::tyck::StaticBase;
+
+    #[test]
+    fn test1<'b>() {
+        struct S<'a> { _phantom: PhantomData<&'a ()> }
+        let tyck_info = <&'b S<'static> as StaticBase>::tyck_info();
+        eprintln!("{:?}", tyck_info)
     }
 }
