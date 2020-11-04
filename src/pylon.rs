@@ -2,19 +2,19 @@
 #![allow(unused_variables)]
 
 use std::marker::PhantomData;
-use std::sync::atomic::AtomicPtr;
 use std::ptr::NonNull;
+use std::sync::atomic::AtomicPtr;
 use std::sync::atomic::Ordering::SeqCst;
 
-use crate::tyck::{StaticBase, TypeCheckInfo};
 use crate::func::RustArgLifetime;
+use crate::tyck::{StaticBase, TypeCheckInfo};
 
 pub enum GcInfo {
-    OnVMStack         = 0,
-    OnVMHeap          = 1,
-    SharedWithHost    = 2,
+    OnVMStack = 0,
+    OnVMHeap = 1,
+    SharedWithHost = 2,
     MutSharedWithHost = 3,
-    MovedToHost       = 4
+    MovedToHost = 4,
 }
 
 impl GcInfo {
@@ -30,10 +30,42 @@ impl GcInfo {
     }
 }
 
+pub fn lifetime_check(gc_info: &GcInfo, lifetime: &RustArgLifetime) -> Result<(), String> {
+    match (gc_info, lifetime) {
+        (GcInfo::OnVMStack, RustArgLifetime::Share) => Ok(()),
+        (GcInfo::OnVMStack, RustArgLifetime::MutShare) => Ok(()),
+        (GcInfo::OnVMStack, RustArgLifetime::Copy) => Ok(()),
+        (GcInfo::OnVMStack, RustArgLifetime::Move) =>
+            unreachable!("items on stack should be Copy"),
+
+        (GcInfo::OnVMHeap, RustArgLifetime::Share) => Ok(()),
+        (GcInfo::OnVMHeap, RustArgLifetime::MutShare) => Ok(()),
+        (GcInfo::OnVMHeap, RustArgLifetime::Copy) => Ok(()),
+        (GcInfo::OnVMHeap, RustArgLifetime::Move) => Ok(()),
+
+        (GcInfo::SharedWithHost, RustArgLifetime::Copy) => Ok(()),
+        (GcInfo::SharedWithHost, RustArgLifetime::Share) => Ok(()),
+        (GcInfo::SharedWithHost, RustArgLifetime::Move) =>
+            Err("cannot move shared item".to_string()),
+        (GcInfo::SharedWithHost, RustArgLifetime::MutShare) =>
+            Err("cannot mutably share an immutably shared item".to_string()),
+
+        (GcInfo::MutSharedWithHost, RustArgLifetime::Copy) => Ok(()),
+        (GcInfo::MutSharedWithHost, RustArgLifetime::Move) =>
+            Err("cannot move shared item".to_string()),
+        (GcInfo::MutSharedWithHost, RustArgLifetime::Share) =>
+            Err("cannot immutably share a mutably shared item".to_string()),
+        (GcInfo::MutSharedWithHost, RustArgLifetime::MutShare) =>
+            Err("cannot mutably share item twice".to_string()),
+
+        (GcInfo::MovedToHost, _) => Err("operating an moved item".to_string())
+    }
+}
+
 pub struct Ptr<'a> {
     pub gc_info: AtomicPtr<u8>,
     pub data: *mut dyn DynBase,
-    _phantom: PhantomData<&'a ()>
+    _phantom: PhantomData<&'a ()>,
 }
 
 impl<'a> Clone for Ptr<'a> {
@@ -41,27 +73,7 @@ impl<'a> Clone for Ptr<'a> {
         Self {
             gc_info: AtomicPtr::new(self.gc_info.load(SeqCst)),
             data: self.data,
-            _phantom: self._phantom
-        }
-    }
-}
-
-impl<'a> Ptr<'a> {
-    pub fn lifetime_check(&self, lifetime: &RustArgLifetime) -> bool {
-        match (GcInfo::from_u8(unsafe{*self.gc_info.load(SeqCst)}), lifetime) {
-            (GcInfo::OnVMStack, RustArgLifetime::Share) => true,
-            (GcInfo::OnVMStack, RustArgLifetime::MutShare) => true,
-            (GcInfo::OnVMStack, RustArgLifetime::Copy) => true,
-            (GcInfo::OnVMStack, RustArgLifetime::Move) =>
-                unimplemented!("items on stack should be Copy"),
-            (GcInfo::OnVMHeap, RustArgLifetime::Share) => true,
-            (GcInfo::OnVMHeap, RustArgLifetime::MutShare) => true,
-            (GcInfo::OnVMHeap, RustArgLifetime::Copy) => true,
-            (GcInfo::OnVMHeap, RustArgLifetime::Move) => true,
-            (GcInfo::SharedWithHost, RustArgLifetime::Copy) => true,
-            (GcInfo::SharedWithHost, RustArgLifetime::Share) => true,
-            (GcInfo::MutSharedWithHost, RustArgLifetime::Copy) => true,
-            _ => false
+            _phantom: self._phantom,
         }
     }
 }
@@ -69,7 +81,7 @@ impl<'a> Ptr<'a> {
 pub struct PtrNonNull<'a> {
     pub gc_info: AtomicPtr<u8>,
     pub data: NonNull<dyn DynBase>,
-    _phantom: PhantomData<&'a ()>
+    _phantom: PhantomData<&'a ()>,
 }
 
 impl<'a> PtrNonNull<'a> {
@@ -77,7 +89,7 @@ impl<'a> PtrNonNull<'a> {
         Some(Self {
             gc_info: ptr.gc_info,
             data: NonNull::new(ptr.data)?,
-            _phantom: PhantomData::default()
+            _phantom: PhantomData::default(),
         })
     }
 }
@@ -115,6 +127,10 @@ impl<T: 'static> DynBase for T {
     fn dyn_tyck_info(&self) -> TypeCheckInfo {
         <T as StaticBase>::tyck_info()
     }
+}
+
+pub trait VMPtrFromRust<'a, T: 'a> {
+    unsafe fn from_any(t: T) -> Result<Ptr<'a>, String>;
 }
 
 pub trait VMPtrToRust<'a, T: 'a> {

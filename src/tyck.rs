@@ -14,18 +14,18 @@ pub trait StaticBase {
     fn lifetime_info() -> RustArgLifetime;
 }
 
-trait LIE<T> {
-    fn ltii() -> RustArgLifetime;
+trait StaticBaseImpl<T> {
+    fn lifetime_info_impl() -> RustArgLifetime;
 }
 
-impl<T> LIE<T> for () {
-    default fn ltii() -> RustArgLifetime {
+impl<T> StaticBaseImpl<T> for () {
+    default fn lifetime_info_impl() -> RustArgLifetime {
         RustArgLifetime::Move
     }
 }
 
-impl<T: Copy> LIE<T> for () {
-    fn ltii() -> RustArgLifetime {
+impl<T: Copy> StaticBaseImpl<T> for () {
+    fn lifetime_info_impl() -> RustArgLifetime {
         RustArgLifetime::Copy
     }
 }
@@ -44,7 +44,7 @@ impl<T: 'static> StaticBase for T {
     }
 
     default fn lifetime_info() -> RustArgLifetime {
-        <() as LIE<T>>::ltii()
+        <() as StaticBaseImpl<T>>::lifetime_info_impl()
     }
 }
 
@@ -79,6 +79,7 @@ impl<T: 'static> StaticBase for &mut T {
 #[cfg(test)]
 mod test {
     use std::marker::PhantomData;
+
     use crate::tyck::StaticBase;
 
     #[test]
