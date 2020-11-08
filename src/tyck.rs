@@ -1,4 +1,4 @@
-use crate::func::RustArgLifetime;
+use crate::cast::RustLifetime;
 
 #[derive(Debug)]
 pub enum TypeCheckInfo {
@@ -11,22 +11,22 @@ pub trait StaticBase {
 
     fn tyck_info() -> TypeCheckInfo;
 
-    fn lifetime_info() -> RustArgLifetime;
+    fn lifetime_info() -> RustLifetime;
 }
 
 trait StaticBaseImpl<T> {
-    fn lifetime_info_impl() -> RustArgLifetime;
+    fn lifetime_info_impl() -> RustLifetime;
 }
 
 impl<T> StaticBaseImpl<T> for () {
-    default fn lifetime_info_impl() -> RustArgLifetime {
-        RustArgLifetime::Move
+    default fn lifetime_info_impl() -> RustLifetime {
+        RustLifetime::Move
     }
 }
 
 impl<T: Copy> StaticBaseImpl<T> for () {
-    fn lifetime_info_impl() -> RustArgLifetime {
-        RustArgLifetime::Copy
+    fn lifetime_info_impl() -> RustLifetime {
+        RustLifetime::Copy
     }
 }
 
@@ -43,7 +43,7 @@ impl<T: 'static> StaticBase for T {
         TypeCheckInfo::SimpleType(std::any::TypeId::of::<T>())
     }
 
-    default fn lifetime_info() -> RustArgLifetime {
+    default fn lifetime_info() -> RustLifetime {
         <() as StaticBaseImpl<T>>::lifetime_info_impl()
     }
 }
@@ -57,8 +57,8 @@ impl<T: 'static> StaticBase for &T {
         <T as StaticBase>::tyck_info()
     }
 
-    fn lifetime_info() -> RustArgLifetime {
-        RustArgLifetime::Share
+    fn lifetime_info() -> RustLifetime {
+        RustLifetime::Share
     }
 }
 
@@ -71,8 +71,8 @@ impl<T: 'static> StaticBase for &mut T {
         <T as StaticBase>::tyck_info()
     }
 
-    fn lifetime_info() -> RustArgLifetime {
-        RustArgLifetime::MutShare
+    fn lifetime_info() -> RustLifetime {
+        RustLifetime::MutShare
     }
 }
 
