@@ -1,6 +1,4 @@
-use std::sync::atomic::Ordering::SeqCst;
-
-use crate::data::{Ptr, GcInfo};
+use crate::data::Ptr;
 use crate::cast::{PtrNonNull, RustLifetime, lifetime_check};
 
 pub trait VMPtrToRust<'a, T: 'a> {
@@ -49,32 +47,28 @@ impl<'a, T: 'a> VMPtrToRustImpl<'a, T> for () {
 
 impl<'a, T: 'a> VMPtrToRustImpl<'a, &'a T> for () {
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a T, String> {
-        let r = GcInfo::from_u8(*ptr.gc_info.load(SeqCst));
-        lifetime_check(&r, &RustLifetime::Share)?;
+        lifetime_check(&ptr.gc_info(), &RustLifetime::Share)?;
         Ok((ptr.data.as_ptr() as *mut T).as_ref().unwrap())
     }
 }
 
 impl<'a, T: 'a> VMPtrToRustImpl<'a, &'a mut T> for () {
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a mut T, String> {
-        let r = GcInfo::from_u8(*ptr.gc_info.load(SeqCst));
-        lifetime_check(&r, &RustLifetime::MutShare)?;
+        lifetime_check(&ptr.gc_info(), &RustLifetime::MutShare)?;
         Ok((ptr.data.as_ptr() as *mut T).as_mut().unwrap())
     }
 }
 
 impl<'a, T: 'a> VMPtrToRustImpl2<'a, T> for () {
     default unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
-        let r = GcInfo::from_u8(*ptr.gc_info.load(SeqCst));
-        lifetime_check(&r, &RustLifetime::Move)?;
+        lifetime_check(&ptr.gc_info(), &RustLifetime::Move)?;
         Ok(*Box::from_raw(ptr.data.as_ptr() as *mut T))
     }
 }
 
 impl<'a, T: 'a + Copy> VMPtrToRustImpl2<'a, T> for () {
     unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
-        let r = GcInfo::from_u8(*ptr.gc_info.load(SeqCst));
-        lifetime_check(&r, &RustLifetime::Copy)?;
+        lifetime_check(&ptr.gc_info(), &RustLifetime::Copy)?;
         Ok(*(ptr.data.as_ptr() as *mut T).as_ref().unwrap())
     }
 }

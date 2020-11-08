@@ -1,8 +1,8 @@
-use std::sync::atomic::AtomicPtr;
-use std::sync::atomic::Ordering::SeqCst;
+use std::sync::atomic::AtomicU8;
 use std::marker::PhantomData;
 
 use crate::tyck::{StaticBase, TypeCheckInfo};
+use std::sync::atomic::Ordering::SeqCst;
 
 pub trait DynBase {
     fn dyn_type_id(&self) -> std::any::TypeId;
@@ -63,17 +63,32 @@ impl<T: 'static> DynBase for T {
 }
 
 pub struct Ptr<'a> {
-    pub gc_info: AtomicPtr<u8>,
+    pub gc_info: *mut AtomicU8,
     pub data: *mut dyn DynBase,
     _phantom: PhantomData<&'a ()>,
+}
+
+impl<'a> Ptr<'a> {
+    pub fn gc_info(&self) -> GcInfo {
+        unsafe {
+            if let Some(info) = self.gc_info.as_ref() {
+                GcInfo::from_u8(info.load(SeqCst))
+            } else {
+                GcInfo::Dropped
+            }
+        }
+    }
 }
 
 impl<'a> Clone for Ptr<'a> {
     fn clone(&self) -> Self {
         Self {
-            gc_info: AtomicPtr::new(self.gc_info.load(SeqCst)),
+            gc_info: self.gc_info,
             data: self.data,
             _phantom: self._phantom,
         }
     }
 }
+
+unsafe impl<'a> Send for Ptr<'a> {}
+unsafe impl<'a> Sync for Ptr<'a> {}

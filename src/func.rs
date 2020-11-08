@@ -32,7 +32,7 @@ pub trait RustCallable<'a> {
             if !ptr.data.dyn_type_check(&tyck_info) {
                 return Err(format!("type check failed for {}th argument", n));
             }
-            lifetime_check(&GcInfo::from_u8(unsafe { *ptr.gc_info.load(SeqCst) }), &lifetime)?;
+            lifetime_check(&GcInfo::from_u8(unsafe { ptr.gc_info.as_ref().unwrap().load(SeqCst) }), &lifetime)?;
         }
 
         return unsafe { self.call_prechecked(args) };

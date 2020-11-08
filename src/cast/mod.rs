@@ -1,14 +1,15 @@
 pub mod from;
 pub mod into;
 
-use std::sync::atomic::AtomicPtr;
+use std::sync::atomic::AtomicU8;
 use std::ptr::NonNull;
 use std::marker::PhantomData;
 
 use crate::data::{DynBase, Ptr, GcInfo};
+use std::sync::atomic::Ordering::SeqCst;
 
 pub struct PtrNonNull<'a> {
-    pub gc_info: AtomicPtr<u8>,
+    pub gc_info: *mut AtomicU8,
     pub data: NonNull<dyn DynBase>,
     _phantom: PhantomData<&'a ()>,
 }
@@ -20,6 +21,12 @@ impl<'a> PtrNonNull<'a> {
             data: NonNull::new(ptr.data)?,
             _phantom: PhantomData::default(),
         })
+    }
+
+    pub fn gc_info(&self) -> GcInfo {
+        unsafe {
+            GcInfo::from_u8(self.gc_info.as_ref().unwrap().load(SeqCst))
+        }
     }
 }
 
