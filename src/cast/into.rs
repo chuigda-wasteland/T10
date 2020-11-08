@@ -1,5 +1,5 @@
 use crate::data::Ptr;
-use crate::cast::{PtrNonNull, RustLifetime, lifetime_check};
+use crate::cast::PtrNonNull;
 
 pub trait VMPtrToRust<'a, T: 'a> {
     type CastResult = T;
@@ -47,28 +47,24 @@ impl<'a, T: 'a> VMPtrToRustImpl<'a, T> for () {
 
 impl<'a, T: 'a> VMPtrToRustImpl<'a, &'a T> for () {
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a T, String> {
-        lifetime_check(&ptr.gc_info(), &RustLifetime::Share)?;
         Ok((ptr.data.as_ptr() as *mut T).as_ref().unwrap())
     }
 }
 
 impl<'a, T: 'a> VMPtrToRustImpl<'a, &'a mut T> for () {
     unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a mut T, String> {
-        lifetime_check(&ptr.gc_info(), &RustLifetime::MutShare)?;
         Ok((ptr.data.as_ptr() as *mut T).as_mut().unwrap())
     }
 }
 
 impl<'a, T: 'a> VMPtrToRustImpl2<'a, T> for () {
     default unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
-        lifetime_check(&ptr.gc_info(), &RustLifetime::Move)?;
         Ok(*Box::from_raw(ptr.data.as_ptr() as *mut T))
     }
 }
 
 impl<'a, T: 'a + Copy> VMPtrToRustImpl2<'a, T> for () {
     unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
-        lifetime_check(&ptr.gc_info(), &RustLifetime::Copy)?;
         Ok(*(ptr.data.as_ptr() as *mut T).as_ref().unwrap())
     }
 }

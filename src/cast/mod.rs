@@ -2,11 +2,11 @@ pub mod from;
 pub mod into;
 
 use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering::SeqCst;
 use std::ptr::NonNull;
 use std::marker::PhantomData;
 
 use crate::data::{DynBase, Ptr, GcInfo};
-use std::sync::atomic::Ordering::SeqCst;
 
 pub struct PtrNonNull<'a> {
     pub gc_info: *mut AtomicU8,

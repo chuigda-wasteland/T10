@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
-use std::sync::atomic::Ordering::SeqCst;
 
-use crate::data::{DynBase, Ptr, GcInfo};
+use crate::data::{DynBase, Ptr};
 use crate::tyck::{StaticBase, TypeCheckInfo};
 use crate::cast::{RustLifetime, lifetime_check};
 use crate::cast::into::VMPtrToRust;
@@ -26,13 +25,11 @@ pub trait RustCallable<'a> {
             return Err(format!("expected {} args, got {}", param_specs.len(), args.len()));
         }
 
-        for ((tyck_info, lifetime), (n, ptr))
+        for ((tyck_info, lifetime), (_n, ptr))
             in param_specs.into_iter().zip(args.iter().enumerate())
         {
-            if !ptr.data.dyn_type_check(&tyck_info) {
-                return Err(format!("type check failed for {}th argument", n));
-            }
-            lifetime_check(&GcInfo::from_u8(unsafe { ptr.gc_info.as_ref().unwrap().load(SeqCst) }), &lifetime)?;
+            ptr.data.dyn_type_check(&tyck_info)?;
+            lifetime_check(&ptr.gc_info(), &lifetime)?;
         }
 
         return unsafe { self.call_prechecked(args) };

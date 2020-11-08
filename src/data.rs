@@ -1,17 +1,20 @@
 use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering::SeqCst;
 use std::marker::PhantomData;
 
 use crate::tyck::{StaticBase, TypeCheckInfo};
-use std::sync::atomic::Ordering::SeqCst;
+use crate::cast::RustLifetime;
 
 pub trait DynBase {
     fn dyn_type_id(&self) -> std::any::TypeId;
 
     fn dyn_type_name(&self) -> &'static str;
 
-    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool;
+    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> Result<(), String>;
 
     fn dyn_tyck_info(&self) -> TypeCheckInfo;
+
+    fn dyn_lifetime_info(&self) -> RustLifetime;
 
     unsafe fn as_ptr(&self) -> *mut () {
         self as *const Self as *mut Self as *mut ()
@@ -53,12 +56,16 @@ impl<T: 'static> DynBase for T {
         std::any::type_name::<T>()
     }
 
-    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> bool {
+    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> Result<(), String> {
         <T as StaticBase>::type_check(tyck_info)
     }
 
     fn dyn_tyck_info(&self) -> TypeCheckInfo {
         <T as StaticBase>::tyck_info()
+    }
+
+    fn dyn_lifetime_info(&self) -> RustLifetime {
+        <Self as StaticBase>::lifetime_info()
     }
 }
 

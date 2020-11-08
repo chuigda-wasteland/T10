@@ -7,14 +7,14 @@ pub enum TypeCheckInfo {
 }
 
 pub trait StaticBase {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool;
+    fn type_check(tyck_info: &TypeCheckInfo) -> Result<(), String>;
 
     fn tyck_info() -> TypeCheckInfo;
 
     fn lifetime_info() -> RustLifetime;
 }
 
-trait StaticBaseImpl<T> {
+pub(crate) trait StaticBaseImpl<T> {
     fn lifetime_info_impl() -> RustLifetime;
 }
 
@@ -31,12 +31,13 @@ impl<T: Copy> StaticBaseImpl<T> for () {
 }
 
 impl<T: 'static> StaticBase for T {
-    default fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+    default fn type_check(tyck_info: &TypeCheckInfo) -> Result<(), String> {
         if let TypeCheckInfo::SimpleType(type_id) = tyck_info {
-            std::any::TypeId::of::<T>() == *type_id
-        } else {
-            false
+            if std::any::TypeId::of::<T>() == *type_id {
+                return Ok(())
+            }
         }
+        return Err("no information about type checking failure at this time.".to_string())
     }
 
     default fn tyck_info() -> TypeCheckInfo {
@@ -49,7 +50,7 @@ impl<T: 'static> StaticBase for T {
 }
 
 impl<T: 'static> StaticBase for &T {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+    fn type_check(tyck_info: &TypeCheckInfo) -> Result<(), String> {
         <T as StaticBase>::type_check(tyck_info)
     }
 
@@ -63,7 +64,7 @@ impl<T: 'static> StaticBase for &T {
 }
 
 impl<T: 'static> StaticBase for &mut T {
-    fn type_check(tyck_info: &TypeCheckInfo) -> bool {
+    fn type_check(tyck_info: &TypeCheckInfo) -> Result<(), String> {
         <T as StaticBase>::type_check(tyck_info)
     }
 
