@@ -21,24 +21,46 @@ pub trait DynBase {
     }
 }
 
+// 5 status = 3bit
 pub enum GcInfo {
-    OnVMStack = 0,
-    OnVMHeap = 1,
-    SharedWithHost = 2,
-    MutSharedWithHost = 3,
-    MovedToHost = 4,
-    Dropped = 5
+    OnVMHeap = 0,
+    SharedWithHost = 1,
+    MutSharedWithHost = 2,
+    MovedToHost = 3,
+    Dropped = 4,
+    Null = 5
 }
 
 impl GcInfo {
     pub fn from_u8(src: u8) -> GcInfo {
         match src {
-            0 => GcInfo::OnVMStack,
-            1 => GcInfo::OnVMHeap,
-            2 => GcInfo::SharedWithHost,
-            3 => GcInfo::MutSharedWithHost,
-            4 => GcInfo::MovedToHost,
-            5 => GcInfo::Dropped,
+            0 => GcInfo::OnVMHeap,
+            1 => GcInfo::SharedWithHost,
+            2 => GcInfo::MutSharedWithHost,
+            3 => GcInfo::MovedToHost,
+            4 => GcInfo::Dropped,
+            5 => GcInfo::Null,
+            _ => unreachable!()
+        }
+    }
+}
+
+pub enum ValueType {
+    Int = 0,
+    Float = 1,
+    Char = 2,
+    Byte = 3,
+    Bool = 4
+}
+
+impl ValueType {
+    pub fn from_u8(src: u8) -> ValueType {
+        match src {
+            0 => ValueType::Int,
+            1 => ValueType::Float,
+            2 => ValueType::Char,
+            3 => ValueType::Byte,
+            4 => ValueType::Bool,
             _ => unreachable!()
         }
     }
@@ -99,3 +121,95 @@ impl<'a> Clone for Ptr<'a> {
 
 unsafe impl<'a> Send for Ptr<'a> {}
 unsafe impl<'a> Sync for Ptr<'a> {}
+
+// For the union!
+#[repr(C)]
+pub union ValueData {
+    ptr: *mut dyn DynBase,
+    int: i64,
+    float: f64,
+    ch: char,
+    byte: u8,
+    boolean: bool
+}
+
+#[repr(C)]
+pub struct Value<'a> {
+    data: ValueData,
+    tag: u8,
+    _phantom: PhantomData<&'a ()>
+}
+
+impl<'a> Value<'a> {
+    fn new(data: ValueData, tag: u8) -> Self {
+        Self {
+            data,
+            tag,
+            _phantom: PhantomData::default()
+        }
+    }
+
+    pub fn from_ptr(ptr: Ptr<'a>) -> Self {
+        Self::new(
+            ValueData { ptr: ptr.data },
+            unsafe { ptr.gc_info.as_ref() }.map_or(
+                GcInfo::Null as u8,
+                |r| r.load(SeqCst)
+            ) | 0x80
+        )
+    }
+
+    pub fn null_value_type(ty: ValueType) -> Self {
+        Self::new(ValueData { int: 0 }, (ty as u8) | 0x40)
+    }
+
+    pub fn from_i64(data: i64) -> Self {
+        Self::new(ValueData { int: data }, ValueType::Int as u8)
+    }
+
+    pub fn from_f64(data: f64) -> Self {
+        Self::new(ValueData { float: data }, ValueType::Float as u8)
+    }
+
+    pub fn from_char(data: char) -> Self {
+        Self::new(ValueData { ch: data }, ValueType::Char as u8)
+    }
+
+    pub fn from_u8(data: u8) -> Self {
+        Self::new(ValueData { byte: data }, ValueType::Byte as u8)
+    }
+
+    pub fn from_bool(data: bool) -> Self {
+        Self::new(ValueData { boolean: data }, ValueType::Bool as u8)
+    }
+
+    pub fn is_ptr(&self) -> bool {
+        (self.tag & 0x80) != 0
+    }
+
+    pub fn is_value(&self) -> bool {
+        !self.is_ptr()
+    }
+
+    pub fn is_null(&self) -> bool {
+        (self.is_ptr() && (self.tag & 0x07 == GcInfo::Null as u8))
+        || (self.is_value() && (self.tag & 0x40 == 1))
+    }
+
+    pub fn type_id(&self) -> std::any::TypeId {
+        debug_assert!(!self.is_null());
+        if self.is_ptr() {
+            debug_assert_ne!(self.tag & 0x7F, GcInfo::Dropped as u8);
+            unsafe { self.data.ptr.as_ref() }.unwrap().dyn_type_id()
+        } else {
+            use std::any::TypeId;
+            match ValueType::from_u8(self.tag & 0x07) {
+                ValueType::Int => TypeId::of::<i64>(),
+                ValueType::Float => TypeId::of::<f64>(),
+                ValueType::Char => TypeId::of::<char>(),
+                ValueType::Bool => TypeId::of::<bool>(),
+                ValueType::Byte => TypeId::of::<u8>()
+            }
+        }
+    }
+}

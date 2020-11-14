@@ -11,6 +11,8 @@ pub trait StaticBase {
 
     fn tyck_info() -> TypeCheckInfo;
 
+    fn nullable() -> bool;
+
     fn lifetime_info() -> RustLifetime;
 }
 
@@ -44,8 +46,30 @@ impl<T: 'static> StaticBase for T {
         TypeCheckInfo::SimpleType(std::any::TypeId::of::<T>())
     }
 
+    default fn nullable() -> bool {
+        false
+    }
+
     default fn lifetime_info() -> RustLifetime {
         <() as StaticBaseImpl<T>>::lifetime_info_impl()
+    }
+}
+
+impl<T: 'static> StaticBase for Option<T> {
+    fn type_check(tyck_info: &TypeCheckInfo) -> Result<(), String> {
+        <T as StaticBase>::type_check(tyck_info)
+    }
+
+    fn tyck_info() -> TypeCheckInfo {
+        <T as StaticBase>::tyck_info()
+    }
+
+    fn nullable() -> bool {
+        true
+    }
+
+    fn lifetime_info() -> RustLifetime {
+        <T as StaticBase>::lifetime_info()
     }
 }
 
@@ -56,6 +80,10 @@ impl<T: 'static> StaticBase for &T {
 
     fn tyck_info() -> TypeCheckInfo {
         <T as StaticBase>::tyck_info()
+    }
+
+    fn nullable() -> bool {
+        false
     }
 
     fn lifetime_info() -> RustLifetime {
@@ -70,6 +98,10 @@ impl<T: 'static> StaticBase for &mut T {
 
     fn tyck_info() -> TypeCheckInfo {
         <T as StaticBase>::tyck_info()
+    }
+
+    fn nullable() -> bool {
+        false
     }
 
     fn lifetime_info() -> RustLifetime {

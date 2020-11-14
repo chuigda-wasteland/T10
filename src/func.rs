@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::data::{DynBase, Ptr};
 use crate::tyck::{StaticBase, TypeCheckInfo};
 use crate::cast::{RustLifetime, lifetime_check};
-use crate::cast::into::VMPtrToRust;
+use crate::cast::into::ValueToRust;
 
 pub trait RustCallable<'a> {
     fn is_unsafe(&self) -> bool;
@@ -69,8 +69,8 @@ impl<'a, A, B, RET, FN> RustCallable<'a> for RustCallBind2<A, B, RET, FN>
 
     unsafe fn call_prechecked(&self, args: &'a [Ptr<'a>]) -> Result<Ptr<'a>, String> {
         let _ret: RET = self.inner.call((
-            <() as VMPtrToRust<'a, A>>::any_cast(args[0].clone())?
-            , <() as VMPtrToRust<'a, B>>::any_cast(args[1].clone())?
+            <() as ValueToRust<'a, A>>::any_cast(args[0].clone())?
+            , <() as ValueToRust<'a, B>>::any_cast(args[1].clone())?
         ));
         todo!()
     }

@@ -39,12 +39,6 @@ pub enum RustLifetime {
 
 pub fn lifetime_check(gc_info: &GcInfo, lifetime: &RustLifetime) -> Result<(), String> {
     match (gc_info, lifetime) {
-        (GcInfo::OnVMStack, RustLifetime::Share) => Ok(()),
-        (GcInfo::OnVMStack, RustLifetime::MutShare) => Ok(()),
-        (GcInfo::OnVMStack, RustLifetime::Copy) => Ok(()),
-        (GcInfo::OnVMStack, RustLifetime::Move) =>
-            unreachable!("items on stack should be Copy"),
-
         (GcInfo::OnVMHeap, RustLifetime::Share) => Ok(()),
         (GcInfo::OnVMHeap, RustLifetime::MutShare) => Ok(()),
         (GcInfo::OnVMHeap, RustLifetime::Copy) => Ok(()),
@@ -66,7 +60,7 @@ pub fn lifetime_check(gc_info: &GcInfo, lifetime: &RustLifetime) -> Result<(), S
             Err("cannot mutably share item twice".to_string()),
 
         (GcInfo::MovedToHost, _) => Err("operating an moved item".to_string()),
-        (GcInfo::Dropped, _) => unreachable!("cannot use a dropped item")
+        (GcInfo::Dropped, _) => unreachable!("cannot use a dropped item"),
+        (GcInfo::Null, _) => unreachable!("cannot use a null reference")
     }
 }
-
