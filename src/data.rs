@@ -50,7 +50,8 @@ pub enum ValueType {
     Float = 1,
     Char = 2,
     Byte = 3,
-    Bool = 4
+    Bool = 4,
+    AnyType = 5,
 }
 
 impl ValueType {
@@ -98,6 +99,32 @@ pub struct Ptr<'a> {
 }
 
 impl<'a> Ptr<'a> {
+    pub fn moved(data: (impl DynBase + 'static)) -> Self {
+        Self {
+            gc_info: Box::leak(Box::new(AtomicU8::new(GcInfo::OnVMHeap as u8))) as *mut AtomicU8,
+            data: Box::leak(Box::new(data)) as *mut dyn DynBase,
+            _phantom: PhantomData::default()
+        }
+    }
+
+    pub fn borrow(data: &'a (impl DynBase + 'static)) -> Self {
+        Self {
+            gc_info:
+                Box::leak(Box::new(AtomicU8::new(GcInfo::SharedWithHost as u8))) as *mut AtomicU8,
+            data: data as *const dyn DynBase as *mut dyn DynBase,
+            _phantom: PhantomData::default()
+        }
+    }
+
+    pub fn mut_borrow(data: &'a mut (impl DynBase + 'static)) -> Self {
+         Self {
+             gc_info:
+                Box::leak(Box::new(AtomicU8::new(GcInfo::MutSharedWithHost as u8))) as *mut AtomicU8,
+             data: data as *mut dyn DynBase,
+             _phantom: PhantomData::default()
+         }
+    }
+
     pub fn gc_info(&self) -> GcInfo {
         unsafe {
             if let Some(info) = self.gc_info.as_ref() {
@@ -208,7 +235,8 @@ impl<'a> Value<'a> {
                 ValueType::Float => TypeId::of::<f64>(),
                 ValueType::Char => TypeId::of::<char>(),
                 ValueType::Bool => TypeId::of::<bool>(),
-                ValueType::Byte => TypeId::of::<u8>()
+                ValueType::Byte => TypeId::of::<u8>(),
+                ValueType::AnyType => TypeId::of::<dyn std::any::Any>()
             }
         }
     }
