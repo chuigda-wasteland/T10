@@ -5,6 +5,9 @@ use crate::tyck::{StaticBase, TypeCheckInfo};
 use crate::cast::{RustLifetime, lifetime_check};
 use crate::cast::into::ValueToRust;
 
+// TODO rewrite
+/*
+
 pub trait RustCallable<'a> {
     fn is_unsafe(&self) -> bool;
 
@@ -75,3 +78,5 @@ impl<'a, A, B, RET, FN> RustCallable<'a> for RustCallBind2<A, B, RET, FN>
         todo!()
     }
 }
+
+*/

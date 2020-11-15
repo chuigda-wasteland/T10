@@ -125,17 +125,17 @@ unsafe impl<'a> Sync for Ptr<'a> {}
 // For the union!
 #[repr(C)]
 pub union ValueData {
-    ptr: *mut dyn DynBase,
-    int: i64,
-    float: f64,
-    ch: char,
-    byte: u8,
-    boolean: bool
+    pub(crate) ptr: *mut dyn DynBase,
+    pub(crate) int: i64,
+    pub(crate) float: f64,
+    pub(crate) ch: char,
+    pub(crate) byte: u8,
+    pub(crate) boolean: bool
 }
 
 #[repr(C)]
 pub struct Value<'a> {
-    data: ValueData,
+    pub(crate) data: ValueData,
     tag: u8,
     _phantom: PhantomData<&'a ()>
 }

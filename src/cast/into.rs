@@ -1,4 +1,4 @@
-use crate::data::Ptr;
+use crate::data::{Ptr, DynBase};
 use crate::data::Value;
 use crate::cast::PtrNonNull;
 
@@ -25,47 +25,55 @@ impl<'a, T: 'a> ValueToRust<'a, T> for () {
         if value.is_null() {
             Err("NullPointerException".to_string())
         } else {
-            () as ValueToRustImpl<>
+            <() as ValueToRustImpl<T>>::any_cast_impl(value)
         }
     }
 }
 
 impl<'a, T: 'a> ValueToRust<'a, Option<T>> for () {
-    unsafe fn any_cast(ptr: Ptr<'a>) -> Result<Option<T>, String> {
-        PtrNonNull::from_ptr(ptr).map_or_else(|| {
+    unsafe fn any_cast(value: Value<'a>) -> Result<Option<T>, String> {
+        if value.is_null() {
             Ok(None)
-        }, |ptr| {
-            Ok(Some(<() as ValueToRustImpl<'a, T>>::any_cast_impl(ptr)?))
-        })
+        } else {
+            Ok(Some(<() as ValueToRustImpl<'a, T>>::any_cast_impl(value)?))
+        }
     }
 }
 
 impl<'a, T: 'a> ValueToRustImpl<'a, T> for () {
-    default unsafe fn any_cast_impl(ptr: PtrNonNull) -> Result<T, String> {
-        <() as ValueToRustImpl2<'a, T>>::any_cast_impl2(ptr)
+    default unsafe fn any_cast_impl(value: Value<'a>) -> Result<T, String> {
+        <() as ValueToRustImpl2<'a, T>>::any_cast_impl2(value)
     }
 }
 
 impl<'a, T: 'a> ValueToRustImpl<'a, &'a T> for () {
-    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a T, String> {
-        Ok((ptr.data.as_ptr() as *mut T).as_ref().unwrap())
+    unsafe fn any_cast_impl(value: Value<'a>) -> Result<&'a T, String> {
+        if value.is_ptr() {
+            Ok((value.data.ptr as *mut T as *const T).as_ref().unwrap())
+        } else {
+            Err("Source value must be pointer/reference".to_string())
+        }
     }
 }
 
 impl<'a, T: 'a> ValueToRustImpl<'a, &'a mut T> for () {
-    unsafe fn any_cast_impl(ptr: PtrNonNull<'a>) -> Result<&'a mut T, String> {
-        Ok((ptr.data.as_ptr() as *mut T).as_mut().unwrap())
+    unsafe fn any_cast_impl(value: Value<'a>) -> Result<&'a mut T, String> {
+        if value.is_ptr() {
+            Ok((value.data.ptr as *mut T).as_mut().unwrap())
+        } else {
+            Err("Source value must be pointer/reference".to_string())
+        }
     }
 }
 
 impl<'a, T: 'a> ValueToRustImpl2<'a, T> for () {
-    default unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
-        Ok(*Box::from_raw(ptr.data.as_ptr() as *mut T))
+    default unsafe fn any_cast_impl2(value: Value<'a>) -> Result<T, String> {
+        Ok(*Box::from_raw(value.data.ptr as *mut T))
     }
 }
 
 impl<'a, T: 'a + Copy> ValueToRustImpl2<'a, T> for () {
-    unsafe fn any_cast_impl2(ptr: PtrNonNull) -> Result<T, String> {
-        Ok(*(ptr.data.as_ptr() as *mut T).as_ref().unwrap())
+    unsafe fn any_cast_impl2(value: Value<'a>) -> Result<T, String> {
+        Ok(*(value.data.ptr as *mut T).as_ref().unwrap())
     }
 }
