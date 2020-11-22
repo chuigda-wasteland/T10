@@ -1,3 +1,4 @@
+/*
 use std::marker::PhantomData;
 
 use crate::data::{DynBase, Ptr};
@@ -6,7 +7,6 @@ use crate::cast::{RustLifetime, lifetime_check};
 use crate::cast::into::ValueToRust;
 
 // TODO rewrite
-/*
 
 pub trait RustCallable<'a> {
     fn is_unsafe(&self) -> bool;

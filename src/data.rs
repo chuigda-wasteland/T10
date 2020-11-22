@@ -1,3 +1,5 @@
+/*
+
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering::SeqCst;
 use std::marker::PhantomData;
@@ -118,8 +120,9 @@ impl<'a> Ptr<'a> {
 
     pub fn mut_borrow(data: &'a mut (impl DynBase + 'static)) -> Self {
          Self {
-             gc_info:
-                Box::leak(Box::new(AtomicU8::new(GcInfo::MutSharedWithHost as u8))) as *mut AtomicU8,
+             gc_info: Box::leak(
+                 Box::new(
+                     AtomicU8::new(GcInfo::MutSharedWithHost as u8))) as *mut AtomicU8,
              data: data as *mut dyn DynBase,
              _phantom: PhantomData::default()
          }
@@ -241,3 +244,5 @@ impl<'a> Value<'a> {
         }
     }
 }
+
+ */

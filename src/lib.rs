@@ -7,3 +7,4 @@ pub mod cast;
 pub mod data;
 pub mod func;
 pub mod tyck;
+pub mod void;

@@ -1,6 +1,8 @@
 pub mod from;
 pub mod into;
 
+/*
+
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering::SeqCst;
 use std::ptr::NonNull;
@@ -64,3 +66,5 @@ pub fn lifetime_check(gc_info: &GcInfo, lifetime: &RustLifetime) -> Result<(), S
         (GcInfo::Null, _) => unreachable!("cannot use a null reference")
     }
 }
+
+ */

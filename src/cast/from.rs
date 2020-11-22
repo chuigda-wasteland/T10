@@ -1,3 +1,5 @@
+/*
+
 use crate::data::{Value, ValueType, DynBase};
 
 // We cannot use a single pointer since we'd like to support value types.
@@ -72,3 +74,4 @@ impl<'a, T: 'a + Copy> ValueFromRustImpl2<'a, T> for () {
         unimplemented!()
     }
 }
+*/
