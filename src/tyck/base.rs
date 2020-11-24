@@ -1,6 +1,7 @@
+use std::any::TypeId;
+
 use crate::tyck::{TypeCheckInfo, FFIAction};
 use crate::void::Void;
-use std::any::TypeId;
 
 pub trait StaticBase<T: 'static> {
     fn tyck_info() -> TypeCheckInfo;

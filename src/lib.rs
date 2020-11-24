@@ -1,5 +1,5 @@
 #![allow(incomplete_features)]
-#![feature(associated_type_defaults)]
+#![feature(maybe_uninit_extra)]
 #![feature(specialization)]
 #![feature(fn_traits)]
 

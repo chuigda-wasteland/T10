@@ -1,31 +1,16 @@
-/*
-
+use std::any::{TypeId, type_name};
+use std::marker::PhantomData;
+use std::mem::{MaybeUninit, ManuallyDrop};
+use std::ptr::null_mut;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering::SeqCst;
-use std::marker::PhantomData;
 
-use crate::tyck::{StaticBase, TypeCheckInfo};
-use crate::cast::RustLifetime;
+use crate::tyck::base::StaticBase;
+use crate::tyck::TypeCheckInfo;
+use crate::void::Void;
 
-pub trait DynBase {
-    fn dyn_type_id(&self) -> std::any::TypeId;
-
-    fn dyn_type_name(&self) -> &'static str;
-
-    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> Result<(), String>;
-
-    fn dyn_tyck_info(&self) -> TypeCheckInfo;
-
-    fn dyn_lifetime_info(&self) -> RustLifetime;
-
-    unsafe fn as_ptr(&self) -> *mut () {
-        self as *const Self as *mut Self as *mut ()
-    }
-}
-
-// 5 status = 3bit
 pub enum GcInfo {
-    OnVMHeap = 0,
+    Owned = 0,
     SharedWithHost = 1,
     MutSharedWithHost = 2,
     MovedToHost = 3,
@@ -36,7 +21,7 @@ pub enum GcInfo {
 impl GcInfo {
     pub fn from_u8(src: u8) -> GcInfo {
         match src {
-            0 => GcInfo::OnVMHeap,
+            0 => GcInfo::Owned,
             1 => GcInfo::SharedWithHost,
             2 => GcInfo::MutSharedWithHost,
             3 => GcInfo::MovedToHost,
@@ -46,6 +31,112 @@ impl GcInfo {
         }
     }
 }
+
+union WrapperData<T> {
+    value: ManuallyDrop<MaybeUninit<T>>,
+    ptr: *mut T
+}
+
+impl<T> WrapperData<T> {
+    pub unsafe fn borrow_value(&mut self) -> *mut T {
+        self.value.as_mut_ptr()
+    }
+
+    pub unsafe fn borrow_ptr(&self) -> *mut T {
+        self.ptr
+    }
+
+    pub unsafe fn take_value(&mut self) -> T {
+        ManuallyDrop::take(&mut self.value).assume_init()
+    }
+}
+
+pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
+    data: WrapperData<Ta>,
+    gc_info: AtomicU8,
+    _phantom: PhantomData<&'a Ts>
+}
+
+impl<'a, Ta: 'a, Ts: 'static> Drop for Wrapper<'a, Ta, Ts> {
+    fn drop(&mut self) {
+        if false /* TODO use the real condition here */ {
+            unsafe {
+                ManuallyDrop::take(&mut self.data.value).assume_init_drop();
+            }
+        }
+    }
+}
+
+pub type StaticWrapper<T> = Wrapper<'static, T, T>;
+
+pub trait DynBase {
+    fn dyn_type_id(&self) -> std::any::TypeId;
+    fn dyn_type_name(&self) -> &'static str;
+    fn dyn_tyck(&self, tyck_info: &TypeCheckInfo) -> bool;
+    fn dyn_tyck_info(&self) -> TypeCheckInfo;
+
+    // TODO differ between `as_ptr_borrow` and `as_ptr_take`
+    unsafe fn as_ptr(&mut self) -> *mut ();
+
+    #[cfg(not(debug_assertions))]
+    unsafe fn take_out(&mut self, dest: *mut ());
+
+    #[cfg(debug_assertions)]
+    unsafe fn take_out(&mut self, dest: *mut (), dest_ty: TypeId);
+}
+
+impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
+    fn dyn_type_id(&self) -> TypeId {
+        TypeId::of::<Ts>()
+    }
+
+    fn dyn_type_name(&self) -> &'static str {
+        type_name::<Ta>()
+    }
+
+    fn dyn_tyck(&self, tyck_info: &TypeCheckInfo) -> bool {
+        <Void as StaticBase<Ts>>::tyck(tyck_info)
+    }
+
+    fn dyn_tyck_info(&self) -> TypeCheckInfo {
+        <Void as StaticBase<Ts>>::tyck_info()
+    }
+
+    unsafe fn as_ptr(&mut self) -> *mut () {
+        match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
+            GcInfo::SharedWithHost => self.data.borrow_ptr() as *mut (),
+            GcInfo::MutSharedWithHost => self.data.borrow_ptr() as *mut (),
+            GcInfo::Owned => self.data.borrow_value() as *mut (),
+            GcInfo::MovedToHost => unreachable!("cannot use moved value"),
+            GcInfo::Dropped => unreachable!("cannot use dropped value"),
+            GcInfo::Null => null_mut()
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    unsafe fn take_out(&mut self, dest: *mut ()) {
+        let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
+        dest.write(self.data.take_value());
+    }
+
+    #[cfg(debug_assertions)]
+    unsafe fn take_out(&mut self, dest: *mut (), dest_ty: TypeId) {
+        debug_assert_eq!(dest_ty, TypeId::of::<MaybeUninit<Ts>>());
+        let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
+        dest.write(self.data.take_value());
+    }
+}
+
+/*
+
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering::SeqCst;
+use std::marker::PhantomData;
+
+use crate::tyck::{StaticBase, TypeCheckInfo};
+use crate::cast::RustLifetime;
+
+// 5 status = 3bit
 
 pub enum ValueType {
     Int = 0,

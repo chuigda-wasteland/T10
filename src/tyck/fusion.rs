@@ -1,5 +1,3 @@
-// Before doing this I'm getting to the playground to try something out
-
 use std::error::Error;
 
 use crate::tyck::{TypeCheckInfo, FFIAction};
