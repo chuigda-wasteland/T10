@@ -1,4 +1,4 @@
-use std::any::{TypeId, type_name};
+use std::any::{TypeId, type_name, Any};
 use std::marker::PhantomData;
 use std::mem::{MaybeUninit, ManuallyDrop};
 use std::ptr::null_mut;
@@ -127,123 +127,30 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 }
 
-/*
-
-use std::sync::atomic::AtomicU8;
-use std::sync::atomic::Ordering::SeqCst;
-use std::marker::PhantomData;
-
-use crate::tyck::{StaticBase, TypeCheckInfo};
-use crate::cast::RustLifetime;
-
-// 5 status = 3bit
-
+#[derive(Copy, Clone)]
 pub enum ValueType {
-    Int = 0,
-    Float = 1,
-    Char = 2,
-    Byte = 3,
-    Bool = 4,
-    AnyType = 5,
+    Int = 1,
+    Float = 2,
+    Char = 3,
+    Byte = 4,
+    Bool = 5,
+    AnyType = 6
 }
 
-impl ValueType {
-    pub fn from_u8(src: u8) -> ValueType {
+impl From<u8> for ValueType {
+    fn from(src: u8) -> Self {
         match src {
-            0 => ValueType::Int,
-            1 => ValueType::Float,
-            2 => ValueType::Char,
-            3 => ValueType::Byte,
-            4 => ValueType::Bool,
-            _ => unreachable!()
+            1 => ValueType::Int,
+            2 => ValueType::Float,
+            3 => ValueType::Char,
+            4 => ValueType::Byte,
+            5 => ValueType::Bool,
+            6 => ValueType::AnyType,
+            _ => unreachable!("invalid ValueType")
         }
     }
 }
 
-// impl !DynBase for &T {}
-// impl !DynBase for &mut T {}
-
-impl<T: 'static> DynBase for T {
-    fn dyn_type_id(&self) -> std::any::TypeId {
-        std::any::TypeId::of::<T>()
-    }
-
-    fn dyn_type_name(&self) -> &'static str {
-        std::any::type_name::<T>()
-    }
-
-    fn dyn_type_check(&self, tyck_info: &TypeCheckInfo) -> Result<(), String> {
-        <T as StaticBase>::type_check(tyck_info)
-    }
-
-    fn dyn_tyck_info(&self) -> TypeCheckInfo {
-        <T as StaticBase>::tyck_info()
-    }
-
-    fn dyn_lifetime_info(&self) -> RustLifetime {
-        <Self as StaticBase>::lifetime_info()
-    }
-}
-
-pub struct Ptr<'a> {
-    pub gc_info: *mut AtomicU8,
-    pub data: *mut dyn DynBase,
-    _phantom: PhantomData<&'a ()>,
-}
-
-impl<'a> Ptr<'a> {
-    pub fn moved(data: (impl DynBase + 'static)) -> Self {
-        Self {
-            gc_info: Box::leak(Box::new(AtomicU8::new(GcInfo::OnVMHeap as u8))) as *mut AtomicU8,
-            data: Box::leak(Box::new(data)) as *mut dyn DynBase,
-            _phantom: PhantomData::default()
-        }
-    }
-
-    pub fn borrow(data: &'a (impl DynBase + 'static)) -> Self {
-        Self {
-            gc_info:
-                Box::leak(Box::new(AtomicU8::new(GcInfo::SharedWithHost as u8))) as *mut AtomicU8,
-            data: data as *const dyn DynBase as *mut dyn DynBase,
-            _phantom: PhantomData::default()
-        }
-    }
-
-    pub fn mut_borrow(data: &'a mut (impl DynBase + 'static)) -> Self {
-         Self {
-             gc_info: Box::leak(
-                 Box::new(
-                     AtomicU8::new(GcInfo::MutSharedWithHost as u8))) as *mut AtomicU8,
-             data: data as *mut dyn DynBase,
-             _phantom: PhantomData::default()
-         }
-    }
-
-    pub fn gc_info(&self) -> GcInfo {
-        unsafe {
-            if let Some(info) = self.gc_info.as_ref() {
-                GcInfo::from_u8(info.load(SeqCst))
-            } else {
-                GcInfo::Dropped
-            }
-        }
-    }
-}
-
-impl<'a> Clone for Ptr<'a> {
-    fn clone(&self) -> Self {
-        Self {
-            gc_info: self.gc_info,
-            data: self.data,
-            _phantom: self._phantom,
-        }
-    }
-}
-
-unsafe impl<'a> Send for Ptr<'a> {}
-unsafe impl<'a> Sync for Ptr<'a> {}
-
-// For the union!
 #[repr(C)]
 pub union ValueData {
     pub(crate) ptr: *mut dyn DynBase,
@@ -261,8 +168,12 @@ pub struct Value<'a> {
     _phantom: PhantomData<&'a ()>
 }
 
+const VALUE_MASK      : u8 = 0b10000000;
+const NULL_MASK       : u8 = 0b01000000;
+const VALUE_TYPE_MASK : u8 = 0b00000111;
+
 impl<'a> Value<'a> {
-    fn new(data: ValueData, tag: u8) -> Self {
+    pub(crate) fn new(data: ValueData, tag: u8) -> Self {
         Self {
             data,
             tag,
@@ -270,70 +181,76 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn from_ptr(ptr: Ptr<'a>) -> Self {
-        Self::new(
-            ValueData { ptr: ptr.data },
-            unsafe { ptr.gc_info.as_ref() }.map_or(
-                GcInfo::Null as u8,
-                |r| r.load(SeqCst)
-            ) | 0x80
-        )
+    pub fn null_ptr() -> Self {
+        Self::new(ValueData { ptr: null_mut::<StaticWrapper<Void>>() as *mut dyn DynBase }, NULL_MASK)
     }
 
-    pub fn null_value_type(ty: ValueType) -> Self {
-        Self::new(ValueData { int: 0 }, (ty as u8) | 0x40)
-    }
-
-    pub fn from_i64(data: i64) -> Self {
-        Self::new(ValueData { int: data }, ValueType::Int as u8)
-    }
-
-    pub fn from_f64(data: f64) -> Self {
-        Self::new(ValueData { float: data }, ValueType::Float as u8)
-    }
-
-    pub fn from_char(data: char) -> Self {
-        Self::new(ValueData { ch: data }, ValueType::Char as u8)
-    }
-
-    pub fn from_u8(data: u8) -> Self {
-        Self::new(ValueData { byte: data }, ValueType::Byte as u8)
-    }
-
-    pub fn from_bool(data: bool) -> Self {
-        Self::new(ValueData { boolean: data }, ValueType::Bool as u8)
-    }
-
-    pub fn is_ptr(&self) -> bool {
-        (self.tag & 0x80) != 0
-    }
-
-    pub fn is_value(&self) -> bool {
-        !self.is_ptr()
+    pub fn null_value(value_type: ValueType) -> Self {
+        Self::new(ValueData { int: 0 }, VALUE_MASK | NULL_MASK | (value_type as u8))
     }
 
     pub fn is_null(&self) -> bool {
-        (self.is_ptr() && (self.tag & 0x07 == GcInfo::Null as u8))
-        || (self.is_value() && (self.tag & 0x40 == 1))
+        (self.tag & NULL_MASK) != 0
     }
 
-    pub fn type_id(&self) -> std::any::TypeId {
-        debug_assert!(!self.is_null());
-        if self.is_ptr() {
-            debug_assert_ne!(self.tag & 0x7F, GcInfo::Dropped as u8);
-            unsafe { self.data.ptr.as_ref() }.unwrap().dyn_type_id()
-        } else {
-            use std::any::TypeId;
-            match ValueType::from_u8(self.tag & 0x07) {
+    pub fn is_value(&self) -> bool {
+        (self.tag & VALUE_MASK) != 0
+    }
+
+    pub fn type_id(&self) -> TypeId {
+        if self.is_value() {
+            match ValueType::from(self.tag & VALUE_TYPE_MASK) {
                 ValueType::Int => TypeId::of::<i64>(),
                 ValueType::Float => TypeId::of::<f64>(),
                 ValueType::Char => TypeId::of::<char>(),
-                ValueType::Bool => TypeId::of::<bool>(),
                 ValueType::Byte => TypeId::of::<u8>(),
-                ValueType::AnyType => TypeId::of::<dyn std::any::Any>()
+                ValueType::Bool => TypeId::of::<bool>(),
+                ValueType::AnyType => TypeId::of::<dyn Any>()
+            }
+        } else {
+            if self.is_null() {
+                unreachable!("should not use type_id on null value")
+            } else {
+                unsafe {
+                    self.data.ptr.as_ref().unwrap().dyn_type_id()
+                }
             }
         }
     }
 }
 
- */
+impl<'a> From<*mut dyn DynBase> for Value<'a> {
+    fn from(ptr: *mut dyn DynBase) -> Self {
+        Self::new(ValueData { ptr }, 0)
+    }
+}
+
+impl<'a> From<i64> for Value<'a> {
+    fn from(int: i64) -> Self {
+        Self::new(ValueData { int }, VALUE_MASK | ValueType::Int as u8)
+    }
+}
+
+impl<'a> From<f64> for Value<'a> {
+    fn from(float: f64) -> Self {
+        Self::new(ValueData { float }, VALUE_MASK | ValueType::Float as u8)
+    }
+}
+
+impl<'a> From<char> for Value<'a> {
+    fn from(ch: char) -> Self {
+        Self::new(ValueData { ch }, VALUE_MASK | ValueType::Char as u8)
+    }
+}
+
+impl<'a> From<bool> for Value<'a> {
+    fn from(boolean: bool) -> Self {
+        Self::new(ValueData { boolean }, VALUE_MASK | ValueType::Bool as u8)
+    }
+}
+
+impl<'a> From<u8> for Value<'a> {
+    fn from(byte: u8) -> Self {
+        Self::new(ValueData { byte }, VALUE_MASK | ValueType::Byte as u8)
+    }
+}
