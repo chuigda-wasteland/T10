@@ -33,63 +33,63 @@ pub trait Fusion2 {
 }
 
 impl<T: FusionRV2> FusionRV for T {
-    default fn tyck_info_rv() -> TypeCheckInfo {
+    #[inline] default fn tyck_info_rv() -> TypeCheckInfo {
         <T as FusionRV2>::tyck_info_rv2()
     }
 
-    default fn tyck_rv(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] default fn tyck_rv(tyck_info: &TypeCheckInfo) -> bool {
         <T as FusionRV2>::tyck_rv2(tyck_info)
     }
 
-    default fn nullable_rv() -> bool {
+    #[inline] default fn nullable_rv() -> bool {
         <T as FusionRV2>::nullable_rv2()
     }
 
-    default fn exception() -> bool {
+    #[inline] default fn exception() -> bool {
         false
     }
 
-    default fn ffi_action_rv() -> FFIAction {
+    #[inline] default fn ffi_action_rv() -> FFIAction {
         <T as FusionRV2>::ffi_action_rv2()
     }
 }
 
 impl<T: FusionRV2, E: 'static + Error> FusionRV for Result<T, E> {
-    fn tyck_info_rv() -> TypeCheckInfo {
+    #[inline] fn tyck_info_rv() -> TypeCheckInfo {
         <T as FusionRV2>::tyck_info_rv2()
     }
 
-    fn tyck_rv(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] fn tyck_rv(tyck_info: &TypeCheckInfo) -> bool {
         <T as FusionRV2>::tyck_rv2(tyck_info)
     }
 
-    fn nullable_rv() -> bool {
+    #[inline] fn nullable_rv() -> bool {
         <T as FusionRV2>::nullable_rv2()
     }
 
-    fn exception() -> bool {
+    #[inline] fn exception() -> bool {
         true
     }
 
-    fn ffi_action_rv() -> FFIAction {
+    #[inline] fn ffi_action_rv() -> FFIAction {
         <T as FusionRV2>::ffi_action_rv2()
     }
 }
 
 impl<T: Fusion> FusionRV2 for T {
-    default fn tyck_info_rv2() -> TypeCheckInfo {
+    #[inline] default fn tyck_info_rv2() -> TypeCheckInfo {
         <T as Fusion>::fusion_tyck_info()
     }
 
-    default fn tyck_rv2(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] default fn tyck_rv2(tyck_info: &TypeCheckInfo) -> bool {
         <T as Fusion>::fusion_tyck(tyck_info)
     }
 
-    default fn nullable_rv2() -> bool {
+    #[inline] default fn nullable_rv2() -> bool {
         <T as Fusion>::nullable()
     }
 
-    default fn ffi_action_rv2() -> FFIAction {
+    #[inline] default fn ffi_action_rv2() -> FFIAction {
         <T as Fusion>::fusion_ffi_action()
     }
 }
@@ -207,4 +207,3 @@ impl<T: 'static> Fusion2 for &mut T {
         FFIAction::MutShare
     }
 }
-

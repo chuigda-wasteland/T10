@@ -1,77 +1,36 @@
-/*
+use crate::data::Value;
 
-use crate::data::{Value, ValueType, DynBase};
-
-// We cannot use a single pointer since we'd like to support value types.
-// `Ptr` always use heap allocation!
-
-pub trait ValueFromRust<'a, T: 'a> {
-    unsafe fn from_any(t: T) -> Result<Value<'a>, String>;
+pub trait IntoValue<'a> {
+    unsafe fn into_value(self) -> Result<Value<'a>, String>;
 }
 
-pub trait ValueFromRustImpl<'a, T: 'a> {
-    unsafe fn from_any_impl(t: T) -> Result<Value<'a>, String>;
+pub trait IntoValueNoexcept<'a> {
+    unsafe fn into_value_noexcept(self) -> Result<Value<'a>, String>;
 }
 
-pub trait ValueFromRustImpl2<'a, T: 'a> {
-    unsafe fn from_any_impl2(t: T) -> Result<Value<'a>, String>;
+pub trait ValueFromRustL1<'a> {
+    unsafe fn into_value1(self) -> Result<Value<'a>, String>;
 }
 
-impl<'a, T: 'a> ValueFromRust<'a, T> for () {
-    default unsafe fn from_any(t: T) -> Result<Value<'a>, String> {
-        <() as ValueFromRustImpl<'a, T>>::from_any_impl(t)
+pub trait ValueFromRustL2<'a> {
+    unsafe fn into_value2(self) -> Result<Value<'a>, String>;
+}
+
+pub trait ValueFromRustL3<'a> {
+    unsafe fn into_value3(self) -> Result<Value<'a>, String>;
+}
+
+impl<'a, T: IntoValueNoexcept<'a>> IntoValue<'a> for T {
+    unsafe fn into_value(self) -> Result<Value<'a>, String> {
+        self.into_value_noexcept()
     }
 }
 
-impl<'a, T: 'a> ValueFromRust<'a, Option<T>> for () {
-    default unsafe fn from_any(t: Option<T>) -> Result<Value<'a>, String> {
-        if let Some(t) = t {
-            <() as ValueFromRust<T>>::from_any(t)
-        } else {
-            Ok(Value::null_value_type(ValueType::AnyType))
+impl<'a, T: IntoValueNoexcept<'a>, E: 'static + std::error::Error> IntoValue<'a> for Result<T, E> {
+    unsafe fn into_value(self) -> Result<Value<'a>, String> {
+        match self {
+            Ok(value) => value.into_value_noexcept(),
+            Err(e) => Err(format!("{}", e))
         }
     }
 }
-
-impl<'a, T: 'a> ValueFromRust<'a, &'a Option<T>> for () {
-    unsafe fn from_any(t: &'a Option<T>) -> Result<Value<'a>, String> {
-        <() as ValueFromRust<Option<&'a T>>>::from_any(t.as_ref())
-    }
-}
-
-impl<'a, T: 'a> ValueFromRust<'a, &'a mut Option<T>> for () {
-    unsafe fn from_any(t: &'a mut Option<T>) -> Result<Value<'a>, String> {
-        <() as ValueFromRust<Option<&'a mut T>>>::from_any(t.as_mut())
-    }
-}
-
-impl<'a, T: 'a> ValueFromRustImpl<'a, T> for () {
-    default unsafe fn from_any_impl(t: T) -> Result<Value<'a>, String> {
-        <() as ValueFromRustImpl2<T>>::from_any_impl2(t)
-    }
-}
-
-impl<'a, T: 'a> ValueFromRustImpl<'a, &'a T> for () {
-    unsafe fn from_any_impl(t: &'a T) -> Result<Value<'a>, String> {
-        Ok(todo!())
-    }
-}
-
-impl<'a, T: 'a> ValueFromRustImpl<'a, &'a mut T> for () {
-    unsafe fn from_any_impl(t: &'a mut T) -> Result<Value<'a>, String> {
-        unimplemented!()
-    }
-}
-
-impl<'a, T: 'a> ValueFromRustImpl2<'a, T> for () {
-    default unsafe fn from_any_impl2(t: T) -> Result<Value<'a>, String> {
-        unimplemented!()
-    }
-}
-
-impl<'a, T: 'a + Copy> ValueFromRustImpl2<'a, T> for () {
-    unsafe fn from_any_impl2(t: T) -> Result<Value<'a>, String> {
-        unimplemented!()
-    }
-}
-*/

@@ -182,7 +182,8 @@ impl<'a> Value<'a> {
     }
 
     pub fn null_ptr() -> Self {
-        Self::new(ValueData { ptr: null_mut::<StaticWrapper<Void>>() as *mut dyn DynBase }, NULL_MASK)
+        Self::new(ValueData { ptr: null_mut::<StaticWrapper<Void>>() as *mut dyn DynBase },
+                  NULL_MASK)
     }
 
     pub fn null_value(value_type: ValueType) -> Self {
@@ -200,11 +201,11 @@ impl<'a> Value<'a> {
     pub fn type_id(&self) -> TypeId {
         if self.is_value() {
             match ValueType::from(self.tag & VALUE_TYPE_MASK) {
-                ValueType::Int => TypeId::of::<i64>(),
-                ValueType::Float => TypeId::of::<f64>(),
-                ValueType::Char => TypeId::of::<char>(),
-                ValueType::Byte => TypeId::of::<u8>(),
-                ValueType::Bool => TypeId::of::<bool>(),
+                ValueType::Int     => TypeId::of::<i64>(),
+                ValueType::Float   => TypeId::of::<f64>(),
+                ValueType::Char    => TypeId::of::<char>(),
+                ValueType::Byte    => TypeId::of::<u8>(),
+                ValueType::Bool    => TypeId::of::<bool>(),
                 ValueType::AnyType => TypeId::of::<dyn Any>()
             }
         } else {

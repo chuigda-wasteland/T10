@@ -14,11 +14,11 @@ trait StaticBaseImpl<T> {
 }
 
 impl<T: 'static> StaticBase<T> for Void {
-    default fn tyck_info() -> TypeCheckInfo {
+    #[inline] default fn tyck_info() -> TypeCheckInfo {
         TypeCheckInfo::SimpleType(TypeId::of::<T>())
     }
 
-    default fn tyck(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] default fn tyck(tyck_info: &TypeCheckInfo) -> bool {
         if let TypeCheckInfo::SimpleType(tid) = tyck_info {
             *tid == TypeId::of::<T>()
         } else {
@@ -26,13 +26,13 @@ impl<T: 'static> StaticBase<T> for Void {
         }
     }
 
-    default fn ffi_action() -> FFIAction {
+    #[inline] default fn ffi_action() -> FFIAction {
         <Void as StaticBaseImpl<T>>::ffi_action_impl()
     }
 }
 
 impl<T: 'static> StaticBase<Vec<T>> for Void {
-    fn tyck_info() -> TypeCheckInfo {
+    #[inline] fn tyck_info() -> TypeCheckInfo {
         TypeCheckInfo::Container(
             TypeId::of::<Vec<Void>>(),
             vec![
@@ -41,7 +41,7 @@ impl<T: 'static> StaticBase<Vec<T>> for Void {
         )
     }
 
-    fn tyck(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] fn tyck(tyck_info: &TypeCheckInfo) -> bool {
         if let TypeCheckInfo::Container(container_tid, sub_infos) = tyck_info {
             *container_tid == TypeId::of::<Vec<Void>>()
             && sub_infos.len() == 1
@@ -53,19 +53,19 @@ impl<T: 'static> StaticBase<Vec<T>> for Void {
         }
     }
 
-    fn ffi_action() -> FFIAction {
+    #[inline] fn ffi_action() -> FFIAction {
         FFIAction::Move
     }
 }
 
 impl<T> StaticBaseImpl<T> for Void {
-    default fn ffi_action_impl() -> FFIAction {
+    #[inline] default fn ffi_action_impl() -> FFIAction {
         FFIAction::Move
     }
 }
 
 impl<T: Copy> StaticBaseImpl<T> for Void {
-    fn ffi_action_impl() -> FFIAction {
+    #[inline] fn ffi_action_impl() -> FFIAction {
         FFIAction::Copy
     }
 }
