@@ -95,115 +95,115 @@ impl<T: Fusion> FusionRV2 for T {
 }
 
 impl<T: 'static> FusionRV2 for &Option<T> {
-    fn tyck_info_rv2() -> TypeCheckInfo {
+    #[inline] fn tyck_info_rv2() -> TypeCheckInfo {
         <Void as StaticBase<T>>::tyck_info()
     }
 
-    fn tyck_rv2(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] fn tyck_rv2(tyck_info: &TypeCheckInfo) -> bool {
         <Void as StaticBase<T>>::tyck(tyck_info)
     }
 
-    fn nullable_rv2() -> bool {
+    #[inline] fn nullable_rv2() -> bool {
         true
     }
 
-    fn ffi_action_rv2() -> FFIAction {
+    #[inline] fn ffi_action_rv2() -> FFIAction {
         FFIAction::Share
     }
 }
 
 impl<T: 'static> FusionRV2 for &mut Option<T> {
-    fn tyck_info_rv2() -> TypeCheckInfo {
+    #[inline] fn tyck_info_rv2() -> TypeCheckInfo {
         <Void as StaticBase<T>>::tyck_info()
     }
 
-    fn tyck_rv2(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] fn tyck_rv2(tyck_info: &TypeCheckInfo) -> bool {
         <Void as StaticBase<T>>::tyck(tyck_info)
     }
 
-    fn nullable_rv2() -> bool {
+    #[inline] fn nullable_rv2() -> bool {
         true
     }
 
-    fn ffi_action_rv2() -> FFIAction {
+    #[inline] fn ffi_action_rv2() -> FFIAction {
         FFIAction::MutShare
     }
 }
 
 impl<T: Fusion2> Fusion for T {
-    default fn fusion_tyck_info() -> TypeCheckInfo {
+    #[inline] default fn fusion_tyck_info() -> TypeCheckInfo {
         <T as Fusion2>::fusion_tyck_info2()
     }
 
-    default fn fusion_tyck(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] default fn fusion_tyck(tyck_info: &TypeCheckInfo) -> bool {
         <T as Fusion2>::fusion_tyck2(tyck_info)
     }
 
-    default fn nullable() -> bool {
+    #[inline] default fn nullable() -> bool {
         false
     }
 
-    default fn fusion_ffi_action() -> FFIAction {
+    #[inline] default fn fusion_ffi_action() -> FFIAction {
         <T as Fusion2>::fusion_ffi_action2()
     }
 }
 
 impl<T: Fusion2> Fusion for Option<T> {
-    fn fusion_tyck_info() -> TypeCheckInfo {
+    #[inline] fn fusion_tyck_info() -> TypeCheckInfo {
         <T as Fusion2>::fusion_tyck_info2()
     }
 
-    fn fusion_tyck(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] fn fusion_tyck(tyck_info: &TypeCheckInfo) -> bool {
         <T as Fusion2>::fusion_tyck2(tyck_info)
     }
 
-    fn nullable() -> bool {
+    #[inline] fn nullable() -> bool {
         true
     }
 
-    fn fusion_ffi_action() -> FFIAction {
+    #[inline] fn fusion_ffi_action() -> FFIAction {
         <T as Fusion2>::fusion_ffi_action2()
     }
 }
 
 impl<T: 'static> Fusion2 for T {
-    default fn fusion_tyck_info2() -> TypeCheckInfo {
+    #[inline] default fn fusion_tyck_info2() -> TypeCheckInfo {
         <Void as StaticBase<T>>::tyck_info()
     }
 
-    default fn fusion_tyck2(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] default fn fusion_tyck2(tyck_info: &TypeCheckInfo) -> bool {
         <Void as StaticBase<T>>::tyck(tyck_info)
     }
 
-    default fn fusion_ffi_action2() -> FFIAction {
+    #[inline] default fn fusion_ffi_action2() -> FFIAction {
         <Void as StaticBase<T>>::ffi_action()
     }
 }
 
 impl<T: 'static> Fusion2 for &T {
-    fn fusion_tyck_info2() -> TypeCheckInfo {
+    #[inline] fn fusion_tyck_info2() -> TypeCheckInfo {
         <Void as StaticBase<T>>::tyck_info()
     }
 
-    fn fusion_tyck2(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] fn fusion_tyck2(tyck_info: &TypeCheckInfo) -> bool {
         <Void as StaticBase<T>>::tyck(tyck_info)
     }
 
-    fn fusion_ffi_action2() -> FFIAction {
+    #[inline] fn fusion_ffi_action2() -> FFIAction {
         FFIAction::Share
     }
 }
 
 impl<T: 'static> Fusion2 for &mut T {
-    fn fusion_tyck_info2() -> TypeCheckInfo {
+    #[inline] fn fusion_tyck_info2() -> TypeCheckInfo {
         <Void as StaticBase<T>>::tyck_info()
     }
 
-    fn fusion_tyck2(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] fn fusion_tyck2(tyck_info: &TypeCheckInfo) -> bool {
         <Void as StaticBase<T>>::tyck(tyck_info)
     }
 
-    fn fusion_ffi_action2() -> FFIAction {
+    #[inline] fn fusion_ffi_action2() -> FFIAction {
         FFIAction::MutShare
     }
 }
