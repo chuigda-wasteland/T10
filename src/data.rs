@@ -38,8 +38,8 @@ union WrapperData<T> {
 }
 
 impl<T> WrapperData<T> {
-    pub unsafe fn borrow_value(&mut self) -> *mut T {
-        self.value.as_mut_ptr()
+    pub unsafe fn borrow_value(&self) -> *mut T {
+        self.value.as_ptr() as *mut T
     }
 
     pub unsafe fn borrow_ptr(&self) -> *mut T {
@@ -76,7 +76,7 @@ pub trait DynBase {
     fn dyn_tyck_info(&self) -> TypeCheckInfo;
 
     // TODO differ between `as_ptr_borrow` and `as_ptr_take`
-    unsafe fn as_ptr(&mut self) -> *mut ();
+    unsafe fn as_ptr(&self) -> *mut ();
 
     #[cfg(not(debug_assertions))]
     unsafe fn take_out(&mut self, dest: *mut ());
@@ -102,7 +102,7 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
         <Void as StaticBase<Ts>>::tyck_info()
     }
 
-    unsafe fn as_ptr(&mut self) -> *mut () {
+    unsafe fn as_ptr(&self) -> *mut () {
         match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
             GcInfo::SharedWithHost => self.data.borrow_ptr() as *mut (),
             GcInfo::MutSharedWithHost => self.data.borrow_ptr() as *mut (),
@@ -173,7 +173,7 @@ const NULL_MASK       : u8 = 0b01000000;
 const VALUE_TYPE_MASK : u8 = 0b00000111;
 
 impl<'a> Value<'a> {
-    pub(crate) fn new(data: ValueData, tag: u8) -> Self {
+    #[inline] pub(crate) fn new(data: ValueData, tag: u8) -> Self {
         Self {
             data,
             tag,
@@ -181,24 +181,28 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn null_ptr() -> Self {
+    #[inline] pub fn null_ptr() -> Self {
         Self::new(ValueData { ptr: null_mut::<StaticWrapper<Void>>() as *mut dyn DynBase },
                   NULL_MASK)
     }
 
-    pub fn null_value(value_type: ValueType) -> Self {
+    #[inline] pub fn null_value(value_type: ValueType) -> Self {
         Self::new(ValueData { int: 0 }, VALUE_MASK | NULL_MASK | (value_type as u8))
     }
 
-    pub fn is_null(&self) -> bool {
+    #[inline] pub fn is_null(&self) -> bool {
         (self.tag & NULL_MASK) != 0
     }
 
-    pub fn is_value(&self) -> bool {
+    #[inline] pub fn is_value(&self) -> bool {
         (self.tag & VALUE_MASK) != 0
     }
 
-    pub fn type_id(&self) -> TypeId {
+    #[inline] pub fn is_ptr(&self) -> bool {
+        (self.tag & VALUE_MASK) == 0
+    }
+
+    #[inline] pub fn type_id(&self) -> TypeId {
         if self.is_value() {
             match ValueType::from(self.tag & VALUE_TYPE_MASK) {
                 ValueType::Int     => TypeId::of::<i64>(),
