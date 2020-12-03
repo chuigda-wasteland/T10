@@ -3,7 +3,7 @@ use std::any::TypeId;
 use crate::tyck::{TypeCheckInfo, FFIAction};
 use crate::void::Void;
 
-pub trait StaticBase<T: 'static> {
+pub trait StaticBase<T> {
     fn tyck_info() -> TypeCheckInfo;
     fn tyck(tyck_info: &TypeCheckInfo) -> bool;
     fn ffi_action() -> FFIAction;
@@ -28,33 +28,6 @@ impl<T: 'static> StaticBase<T> for Void {
 
     #[inline] default fn ffi_action() -> FFIAction {
         <Void as StaticBaseImpl<T>>::ffi_action_impl()
-    }
-}
-
-impl<T: 'static> StaticBase<Vec<T>> for Void {
-    #[inline] fn tyck_info() -> TypeCheckInfo {
-        TypeCheckInfo::Container(
-            TypeId::of::<Vec<Void>>(),
-            vec![
-                <Void as StaticBase<T>>::tyck_info()
-            ]
-        )
-    }
-
-    #[inline] fn tyck(tyck_info: &TypeCheckInfo) -> bool {
-        if let TypeCheckInfo::Container(container_tid, sub_infos) = tyck_info {
-            *container_tid == TypeId::of::<Vec<Void>>()
-            && sub_infos.len() == 1
-            && <Void as StaticBase<T>>::tyck(
-                unsafe { sub_infos.get_unchecked(0) }
-            )
-        } else {
-            false
-        }
-    }
-
-    #[inline] fn ffi_action() -> FFIAction {
-        FFIAction::Move
     }
 }
 
