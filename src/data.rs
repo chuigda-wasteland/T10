@@ -1,7 +1,7 @@
 use std::any::{TypeId, Any, type_name};
 use std::marker::PhantomData;
 use std::mem::{MaybeUninit, ManuallyDrop};
-use std::ptr::null_mut;
+use std::ptr::{null_mut, NonNull};
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering::SeqCst;
 
@@ -9,14 +9,15 @@ use crate::tyck::base::StaticBase;
 use crate::tyck::TypeCheckInfo;
 use crate::void::Void;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum GcInfo {
     Owned = 0,
     SharedWithHost = 1,
     MutSharedWithHost = 2,
     MovedToHost = 3,
     Dropped = 4,
-    Null = 5
+    Null = 5,
+    OnStack = 6,
 }
 
 impl GcInfo {
@@ -28,6 +29,7 @@ impl GcInfo {
             3 => GcInfo::MovedToHost,
             4 => GcInfo::Dropped,
             5 => GcInfo::Null,
+            6 => GcInfo::OnStack,
             _ => unreachable!()
         }
     }
@@ -35,15 +37,15 @@ impl GcInfo {
 
 union WrapperData<T> {
     value: ManuallyDrop<MaybeUninit<T>>,
-    ptr: *mut T
+    ptr: NonNull<T>
 }
 
 impl<T> WrapperData<T> {
-    pub unsafe fn borrow_value(&self) -> *mut T {
-        self.value.as_ptr() as *mut T
+    pub unsafe fn borrow_value(&self) -> NonNull<T> {
+        NonNull::new_unchecked(self.value.as_ptr() as *mut T)
     }
 
-    pub unsafe fn borrow_ptr(&self) -> *mut T {
+    pub unsafe fn borrow_ptr(&self) -> NonNull<T> {
         self.ptr
     }
 
@@ -76,9 +78,9 @@ pub trait DynBase {
     fn dyn_tyck(&self, tyck_info: &TypeCheckInfo) -> bool;
     fn dyn_tyck_info(&self) -> TypeCheckInfo;
 
-    unsafe fn get_ref(&self) -> *const ();
+    fn gc_info(&self) -> GcInfo;
 
-    unsafe fn get_mut_ref(&self) -> *mut ();
+    unsafe fn get_ref(&self) -> NonNull<()>;
 
     #[cfg(not(debug_assertions))]
     unsafe fn move_out(&mut self, dest: *mut ());
@@ -104,29 +106,18 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
         <Void as StaticBase<Ts>>::tyck_info()
     }
 
-    unsafe fn get_ref(&self) -> *const () {
-        let ret = match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
-            GcInfo::Owned => self.data.borrow_value() as *const (),
-            GcInfo::SharedWithHost => self.data.borrow_ptr() as *const (),
-            GcInfo::MutSharedWithHost =>
-                unreachable!("cannot immutably share since already mutably shared"),
-            GcInfo::MovedToHost => unreachable!("cannot use moved value"),
-            GcInfo::Dropped => unreachable!("cannot use dropped value"),
-            GcInfo::Null => unreachable!("null pointer should not occur at this layer")
-        };
-        ret
+    fn gc_info(&self) -> GcInfo {
+         GcInfo::from_u8(self.gc_info.load(SeqCst))
     }
 
-    unsafe fn get_mut_ref(&self) -> *mut () {
+    unsafe fn get_ref(&self) -> NonNull<()> {
         let ret = match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
-            GcInfo::Owned => self.data.borrow_value() as *mut (),
-            GcInfo::SharedWithHost =>
-                unreachable!("cannot mutably share since already immutably shared"),
-            GcInfo::MutSharedWithHost =>
-                unreachable!("cannot mutably share since already mutably shared"),
+            GcInfo::Owned => self.data.borrow_value().cast(),
+            GcInfo::SharedWithHost | GcInfo::MutSharedWithHost => self.data.borrow_ptr().cast(),
             GcInfo::MovedToHost => unreachable!("cannot use moved value"),
             GcInfo::Dropped => unreachable!("cannot use dropped value"),
-            GcInfo::Null => unreachable!("null pointer should not occur at this layer")
+            GcInfo::Null => unreachable!("null pointer should not occur at this layer"),
+            GcInfo::OnStack => unreachable!("stack value should not occur at this layer")
         };
         ret
     }
@@ -135,7 +126,6 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     unsafe fn move_out(&mut self, dest: *mut ()) {
         let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
         dest.write(self.data.take_value());
-        self.gc_info.store(GcInfo::Dropped as u8, SeqCst)
     }
 
     #[cfg(debug_assertions)]
@@ -143,7 +133,6 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
         debug_assert_eq!(dest_ty, TypeId::of::<MaybeUninit<Ts>>());
         let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
         dest.write(self.data.take_value());
-        self.gc_info.store(GcInfo::Dropped as u8, SeqCst)
     }
 }
 
@@ -241,6 +230,24 @@ impl<'a> Value<'a> {
                 }
             }
         }
+    }
+
+    #[inline] pub fn lifetime(&self) -> GcInfo {
+        if self.is_value() {
+            GcInfo::OnStack
+        } else if self.is_null() {
+            GcInfo::Null
+        } else {
+            unsafe {
+                self.data.ptr.as_ref().unwrap().gc_info()
+            }
+        }
+    }
+
+    #[inline] pub unsafe fn update_lifetime(&self) -> GcInfo {
+        debug_assert!(!self.is_value());
+        debug_assert!(!self.is_null());
+        unimplemented!()
     }
 }
 
