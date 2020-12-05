@@ -1,106 +1,116 @@
-use crate::data::Value;
+use crate::data::{Value, GcInfo};
 use crate::void::Void;
+use crate::error::{TError, NullError};
+use crate::tyck::base::StaticBase;
 
 pub trait FromValue<'a, T> {
-    fn from_value(value: Value<'a>) -> Result<T, String>;
-    unsafe fn from_value_prechecked(value: Value<'a>) -> T;
+    fn lifetime_check(value: &Value<'a>) -> Result<Option<GcInfo>, TError>;
+    unsafe fn type_check(value: &Value<'a>) -> Result<(), TError>;
+    unsafe fn from_value(value: Value<'a>) -> T;
 }
 
 pub trait FromValueL1<'a, T> {
-    fn from_value_l1(value: Value<'a>) -> Result<T, String>;
-    unsafe fn from_value_prechecked_l1(value: Value<'a>) -> T;
+    unsafe fn lifetime_check_l1(value: &Value<'a>) -> Result<Option<GcInfo>, TError>;
+    unsafe fn type_check_l1(value: &Value<'a>) -> Result<(), TError>;
+    unsafe fn from_value_l1(value: Value<'a>) -> T;
 }
 
 pub trait FromValueL2<'a, T> {
-    fn from_value_l2(value: Value<'a>) -> Result<T, String>;
-    unsafe fn from_value_prechecked_l2(value: Value<'a>) -> T;
+    // TODO what do we need in FromValueL2
 }
 
 impl<'a, T> FromValue<'a, T> for Void where Void: FromValueL1<'a, T> {
-    #[inline] default fn from_value(value: Value<'a>) -> Result<T, String> {
+    #[inline] default fn lifetime_check(value: &Value<'a>) -> Result<Option<GcInfo>, TError> {
         if value.is_null() {
-            Err("NullPointerException".to_string())
+            Err(NullError().into())
         } else {
-            <Void as FromValueL1<'a, T>>::from_value_l1(value)
+            unsafe { <Void as FromValueL1<'a, T>>::lifetime_check_l1(value) }
         }
     }
 
-    #[inline] default unsafe fn from_value_prechecked(value: Value<'a>) -> T {
+    #[inline] default unsafe fn type_check(value: &Value<'a>) -> Result<(), TError> {
         debug_assert!(!value.is_null());
-        <Void as FromValueL1<'a, T>>::from_value_prechecked_l1(value)
+        <Void as FromValueL1<'a, T>>::type_check_l1(value)
+    }
+
+    #[inline] default unsafe fn from_value(value: Value<'a>) -> T {
+        <Void as FromValueL1<'a, T>>::from_value_l1(value)
     }
 }
 
 impl<'a, T> FromValue<'a, Option<T>> for Void where Void: FromValueL1<'a, T> {
-    #[inline] fn from_value(value: Value<'a>) -> Result<Option<T>, String> {
+    #[inline] fn lifetime_check(value: &Value<'a>) -> Result<Option<GcInfo>, TError> {
         if value.is_null() {
             Ok(None)
         } else {
-            todo!()
+            unsafe { <Void as FromValueL1<'a, T>>::lifetime_check_l1(value) }
         }
     }
 
-    #[inline] unsafe fn from_value_prechecked(value: Value<'a>) -> Option<T> {
+    #[inline] unsafe fn type_check(value: &Value<'a>) -> Result<(), TError> {
         if value.is_null() {
-            None
+            Ok(())
         } else {
-            todo!()
+            <Void as FromValueL1<'a, T>>::type_check_l1(value)
         }
+    }
+
+    #[inline] unsafe fn from_value(value: Value<'a>) -> Option<T> {
+        Some(<Void as FromValueL1<'a, T>>::from_value_l1(value))
     }
 }
 
 impl<'a, T> FromValueL1<'a, T> for Void where Void: FromValueL2<'a, T> {
-    #[inline] default fn from_value_l1(_value: Value<'a>) -> Result<T, String> {
+    #[inline] default unsafe fn lifetime_check_l1(value: &Value<'a>)
+        -> Result<Option<GcInfo>, TError>
+    {
+        debug_assert!(!value.is_null());
         unimplemented!()
     }
 
-    #[inline] default unsafe fn from_value_prechecked_l1(_value: Value<'a>) -> T {
+    #[inline] default unsafe fn type_check_l1(value: &Value<'a>) -> Result<(), TError> {
+        debug_assert!(!value.is_null());
+        unimplemented!()
+    }
+
+    #[inline] default unsafe fn from_value_l1(value: Value<'a>) -> T {
+        debug_assert!(!value.is_null());
         unimplemented!()
     }
 }
 
 impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
-    #[inline] fn from_value_l1(value: Value<'a>) -> Result<&'a T, String> {
-        if value.is_value() {
-            Err("cannot share a value".to_string())
-        } else {
-            unsafe {
-                Ok(<Void as FromValueL1<'a, &'a T>>::from_value_prechecked_l1(value))
-            }
-        }
+    #[inline] unsafe fn lifetime_check_l1(_value: &Value<'a>) -> Result<Option<GcInfo>, TError> {
+        debug_assert!(!value.is_null());
+        unimplemented!()
     }
 
-    #[inline] unsafe fn from_value_prechecked_l1(value: Value<'a>) -> &'a T {
-        // TODO runtime lifetime checking should still be performed
-        // even with this "prechecked" line
-        (value.data.ptr.as_ref().unwrap().as_ptr() as *mut T as *const T).as_ref().unwrap()
+    #[inline] unsafe fn type_check_l1(_value: &Value<'a>) -> Result<(), TError> {
+        debug_assert!(!value.is_null());
+        unimplemented!()
+    }
+
+    #[inline] unsafe fn from_value_l1(_value: Value<'a>) -> &'a T {
+        debug_assert!(!value.is_null());
+        unimplemented!()
     }
 }
 
 impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
-    #[inline] fn from_value_l1(value: Value<'a>) -> Result<&'a mut T, String> {
-        if value.is_value() {
-            Err("cannot mutably share a value".to_string())
-        } else {
-            unsafe {
-                Ok(<Void as FromValueL1<'a, &'a mut T>>::from_value_prechecked_l1(value))
-            }
-        }
-    }
-
-    #[inline] unsafe fn from_value_prechecked_l1(value: Value<'a>) -> &'a mut T {
-        // TODO runtime lifetime checking should still be performed
-        // even with this "prechecked" line
-        (value.data.ptr.as_ref().unwrap().as_ptr() as *mut T).as_mut().unwrap()
-    }
-}
-
-impl<'a, T> FromValueL2<'a, T> for Void where T: 'static {
-    default fn from_value_l2(_value: Value<'a>) -> Result<T, String> {
+    #[inline] unsafe fn lifetime_check_l1(_value: &Value<'a>) -> Result<Option<GcInfo>, TError> {
+        debug_assert!(!value.is_null());
         unimplemented!()
     }
 
-    default unsafe fn from_value_prechecked_l2(_value: Value<'a>) -> T {
+    #[inline] unsafe fn type_check_l1(_value: &Value<'a>) -> Result<(), TError> {
+        debug_assert!(!value.is_null());
+        unimplemented!()
+    }
+
+    #[inline] unsafe fn from_value_l1(_value: Value<'a>) -> &'a mut T {
+        debug_assert!(!value.is_null());
         unimplemented!()
     }
 }
+
+impl<'a, T> FromValueL2<'a, T> for Void where Void: StaticBase<T> {}

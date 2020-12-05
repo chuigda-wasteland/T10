@@ -9,6 +9,7 @@ use crate::tyck::FFIAction;
 pub enum TError {
     LifetimeError(LifetimeError),
     TypeError(TypeError),
+    NullError(NullError),
     UncheckedException(String),
     UserException(Box<dyn 'static + Error>)
 }
@@ -35,11 +36,18 @@ impl From<TypeError> for TError {
     }
 }
 
+impl From<NullError> for TError {
+    fn from(e: NullError) -> Self {
+        Self::NullError(e)
+    }
+}
+
 impl Display for TError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TError::LifetimeError(e) => write!(f, "{}", e),
             TError::TypeError(e) => write!(f, "{}", e),
+            TError::NullError(e) => write!(f, "{}", e),
             TError::UncheckedException(e) => write!(f, "{}", e),
             TError::UserException(e) => write!(f, "{}", e)
         }
@@ -144,5 +152,14 @@ impl Display for TypeError {
         } else {
             Ok(())
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct NullError ();
+
+impl Display for NullError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NullError")
     }
 }
