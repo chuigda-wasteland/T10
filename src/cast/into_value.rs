@@ -106,7 +106,7 @@ impl<'a, T> IntoValueL3<'a, T> for Void where T: 'static {
 }
 
 impl<'a> IntoValueL3<'a, i64> for Void {
-    fn into_value_l3(t: i64) -> Result<Value<'a>, TError> {
+    #[inline] fn into_value_l3(t: i64) -> Result<Value<'a>, TError> {
         Ok(Value::from(t))
     }
 }
