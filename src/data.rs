@@ -1,7 +1,7 @@
 use std::any::{TypeId, Any, type_name};
 use std::marker::PhantomData;
 use std::mem::{MaybeUninit, ManuallyDrop};
-use std::ptr::{null_mut, NonNull};
+use std::ptr::{NonNull, null_mut};
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering::SeqCst;
 
@@ -40,24 +40,32 @@ union WrapperData<T> {
     ptr: NonNull<T>
 }
 
-impl<T> WrapperData<T> {
-    pub unsafe fn borrow_value(&self) -> NonNull<T> {
-        NonNull::new_unchecked(self.value.as_ptr() as *mut T)
-    }
-
-    pub unsafe fn borrow_ptr(&self) -> NonNull<T> {
-        self.ptr
-    }
-
-    pub unsafe fn take_value(&mut self) -> T {
-        ManuallyDrop::take(&mut self.value).assume_init()
-    }
-}
-
 pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
     data: WrapperData<Ta>,
     gc_info: AtomicU8,
     _phantom: PhantomData<&'a Ts>
+}
+
+impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
+    #[inline] pub unsafe fn borrow_value(&self) -> NonNull<()> {
+        NonNull::new_unchecked(self.data.value.as_ptr() as *const () as *mut ())
+    }
+
+    #[inline] pub unsafe fn borrow_ptr(&self) -> NonNull<()> {
+        self.data.ptr.cast()
+    }
+
+    #[inline] pub unsafe fn take_value(&mut self) -> Ta {
+        ManuallyDrop::take(&mut self.data.value).assume_init()
+    }
+
+    #[inline] fn gc_info_impl(&self) -> GcInfo {
+        GcInfo::from_u8(self.gc_info.load(SeqCst))
+    }
+
+    #[inline] fn set_gc_info_impl(&mut self, gc_info: GcInfo) {
+        self.gc_info.store(gc_info as u8, SeqCst)
+    }
 }
 
 impl<'a, Ta: 'a, Ts: 'static> Drop for Wrapper<'a, Ta, Ts> {
@@ -79,6 +87,7 @@ pub trait DynBase {
     fn dyn_tyck_info(&self) -> TypeCheckInfo;
 
     fn gc_info(&self) -> GcInfo;
+    fn set_gc_info(&mut self, gc_info: GcInfo);
 
     unsafe fn get_ref(&self) -> NonNull<()>;
 
@@ -107,32 +116,36 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 
     fn gc_info(&self) -> GcInfo {
-         GcInfo::from_u8(self.gc_info.load(SeqCst))
+         self.gc_info_impl()
+    }
+
+    fn set_gc_info(&mut self, gc_info: GcInfo) {
+        self.set_gc_info_impl(gc_info)
     }
 
     unsafe fn get_ref(&self) -> NonNull<()> {
-        let ret = match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
-            GcInfo::Owned => self.data.borrow_value().cast(),
-            GcInfo::SharedWithHost | GcInfo::MutSharedWithHost => self.data.borrow_ptr().cast(),
+        match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
+            GcInfo::Owned => self.borrow_value(),
+            GcInfo::SharedWithHost | GcInfo::MutSharedWithHost => self.borrow_ptr(),
             GcInfo::MovedToHost => unreachable!("cannot use moved value"),
             GcInfo::Dropped => unreachable!("cannot use dropped value"),
             GcInfo::Null => unreachable!("null pointer should not occur at this layer"),
             GcInfo::OnStack => unreachable!("stack value should not occur at this layer")
-        };
-        ret
+        }
     }
 
     #[cfg(not(debug_assertions))]
     unsafe fn move_out(&mut self, dest: *mut ()) {
         let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
-        dest.write(self.data.take_value());
+        dest.write(self.take_value());
     }
 
     #[cfg(debug_assertions)]
     unsafe fn move_out_ck(&mut self, dest: *mut (), dest_ty: TypeId) {
+        debug_assert_eq!(self.gc_info(), GcInfo::Owned);
         debug_assert_eq!(dest_ty, TypeId::of::<MaybeUninit<Ts>>());
         let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
-        dest.write(self.data.take_value());
+        dest.write(self.take_value());
     }
 }
 
@@ -232,7 +245,7 @@ impl<'a> Value<'a> {
         }
     }
 
-    #[inline] pub fn lifetime(&self) -> GcInfo {
+    #[inline] pub fn gc_info(&self) -> GcInfo {
         if self.is_value() {
             GcInfo::OnStack
         } else if self.is_null() {
@@ -244,10 +257,10 @@ impl<'a> Value<'a> {
         }
     }
 
-    #[inline] pub unsafe fn update_lifetime(&self) -> GcInfo {
+    #[inline] pub unsafe fn set_gc_info(&self, gc_info: GcInfo) {
         debug_assert!(!self.is_value());
         debug_assert!(!self.is_null());
-        unimplemented!()
+        self.data.ptr.as_mut().unwrap().set_gc_info(gc_info);
     }
 }
 
