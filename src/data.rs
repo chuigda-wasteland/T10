@@ -47,6 +47,36 @@ pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
 }
 
 impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
+    pub fn owned(data: Ta) -> Self {
+        Self {
+            data: WrapperData {
+                value: ManuallyDrop::new(MaybeUninit::new(data))
+            },
+            gc_info: AtomicU8::new(GcInfo::Owned as u8),
+            _phantom: PhantomData::default()
+        }
+    }
+
+    pub fn shared(data: &Ta) -> Self {
+        Self {
+            data: WrapperData {
+                ptr: unsafe { NonNull::new_unchecked(data as *const Ta as *mut Ta) }
+            },
+            gc_info: AtomicU8::new(GcInfo::SharedWithHost as u8),
+            _phantom: PhantomData::default()
+        }
+    }
+
+    pub fn mut_shared(data: &mut Ta) -> Self {
+        Self {
+            data: WrapperData {
+                ptr: unsafe { NonNull::new_unchecked(data as *mut Ta) }
+            },
+            gc_info: AtomicU8::new(GcInfo::MutSharedWithHost as u8),
+            _phantom: PhantomData::default()
+        }
+    }
+
     #[inline] pub unsafe fn borrow_value(&self) -> NonNull<()> {
         NonNull::new_unchecked(self.data.value.as_ptr() as *const () as *mut ())
     }

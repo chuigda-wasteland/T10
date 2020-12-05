@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::mem::MaybeUninit;
 
 use crate::data::{Value, GcInfo};
@@ -5,7 +6,6 @@ use crate::error::{TError, NullError, LifetimeError};
 use crate::void::Void;
 use crate::tyck::base::StaticBase;
 use crate::tyck::FFIAction;
-use std::any::TypeId;
 
 pub trait FromValue<'a, T> {
     fn lifetime_check(value: &Value<'a>) -> Result<Option<GcInfo>, TError>;
@@ -83,6 +83,7 @@ impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
 
     unsafe fn from_value_l1(value: Value<'a>) -> &'a T {
         debug_assert!(!value.is_null());
+        value.set_gc_info(GcInfo::SharedWithHost);
         value.as_ref()
     }
 }
@@ -101,6 +102,7 @@ impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
 
     #[inline] unsafe fn from_value_l1(value: Value<'a>) -> &'a mut T {
         debug_assert!(!value.is_null());
+        value.set_gc_info(GcInfo::MutSharedWithHost);
         value.as_mut()
     }
 }
