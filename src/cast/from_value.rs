@@ -5,13 +5,11 @@ use crate::tyck::base::StaticBase;
 
 pub trait FromValue<'a, T> {
     fn lifetime_check(value: &Value<'a>) -> Result<Option<GcInfo>, TError>;
-    unsafe fn type_check(value: &Value<'a>) -> Result<(), TError>;
     unsafe fn from_value(value: Value<'a>) -> T;
 }
 
 pub trait FromValueL1<'a, T> {
     unsafe fn lifetime_check_l1(value: &Value<'a>) -> Result<Option<GcInfo>, TError>;
-    unsafe fn type_check_l1(value: &Value<'a>) -> Result<(), TError>;
     unsafe fn from_value_l1(value: Value<'a>) -> T;
 }
 
@@ -28,11 +26,6 @@ impl<'a, T> FromValue<'a, T> for Void where Void: FromValueL1<'a, T> {
         }
     }
 
-    #[inline] default unsafe fn type_check(value: &Value<'a>) -> Result<(), TError> {
-        debug_assert!(!value.is_null());
-        <Void as FromValueL1<'a, T>>::type_check_l1(value)
-    }
-
     #[inline] default unsafe fn from_value(value: Value<'a>) -> T {
         <Void as FromValueL1<'a, T>>::from_value_l1(value)
     }
@@ -44,14 +37,6 @@ impl<'a, T> FromValue<'a, Option<T>> for Void where Void: FromValueL1<'a, T> {
             Ok(None)
         } else {
             unsafe { <Void as FromValueL1<'a, T>>::lifetime_check_l1(value) }
-        }
-    }
-
-    #[inline] unsafe fn type_check(value: &Value<'a>) -> Result<(), TError> {
-        if value.is_null() {
-            Ok(())
-        } else {
-            <Void as FromValueL1<'a, T>>::type_check_l1(value)
         }
     }
 
@@ -68,11 +53,6 @@ impl<'a, T> FromValueL1<'a, T> for Void where Void: FromValueL2<'a, T> {
         unimplemented!()
     }
 
-    #[inline] default unsafe fn type_check_l1(value: &Value<'a>) -> Result<(), TError> {
-        debug_assert!(!value.is_null());
-        unimplemented!()
-    }
-
     #[inline] default unsafe fn from_value_l1(value: Value<'a>) -> T {
         debug_assert!(!value.is_null());
         unimplemented!()
@@ -80,34 +60,24 @@ impl<'a, T> FromValueL1<'a, T> for Void where Void: FromValueL2<'a, T> {
 }
 
 impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
-    #[inline] unsafe fn lifetime_check_l1(_value: &Value<'a>) -> Result<Option<GcInfo>, TError> {
+    #[inline] unsafe fn lifetime_check_l1(value: &Value<'a>) -> Result<Option<GcInfo>, TError> {
         debug_assert!(!value.is_null());
         unimplemented!()
     }
 
-    #[inline] unsafe fn type_check_l1(_value: &Value<'a>) -> Result<(), TError> {
-        debug_assert!(!value.is_null());
-        unimplemented!()
-    }
-
-    #[inline] unsafe fn from_value_l1(_value: Value<'a>) -> &'a T {
+    #[inline] unsafe fn from_value_l1(value: Value<'a>) -> &'a T {
         debug_assert!(!value.is_null());
         unimplemented!()
     }
 }
 
 impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
-    #[inline] unsafe fn lifetime_check_l1(_value: &Value<'a>) -> Result<Option<GcInfo>, TError> {
+    #[inline] unsafe fn lifetime_check_l1(value: &Value<'a>) -> Result<Option<GcInfo>, TError> {
         debug_assert!(!value.is_null());
         unimplemented!()
     }
 
-    #[inline] unsafe fn type_check_l1(_value: &Value<'a>) -> Result<(), TError> {
-        debug_assert!(!value.is_null());
-        unimplemented!()
-    }
-
-    #[inline] unsafe fn from_value_l1(_value: Value<'a>) -> &'a mut T {
+    #[inline] unsafe fn from_value_l1(value: Value<'a>) -> &'a mut T {
         debug_assert!(!value.is_null());
         unimplemented!()
     }
