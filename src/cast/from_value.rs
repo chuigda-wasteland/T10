@@ -96,11 +96,11 @@ impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
 }
 
 impl<'a, T> FromValueL2<'a, T> for Void where T: 'static {
-    fn from_value_l2(_value: Value<'a>) -> Result<T, String> {
+    default fn from_value_l2(_value: Value<'a>) -> Result<T, String> {
         unimplemented!()
     }
 
-    unsafe fn from_value_prechecked_l2(_value: Value<'a>) -> T {
+    default unsafe fn from_value_prechecked_l2(_value: Value<'a>) -> T {
         unimplemented!()
     }
 }
