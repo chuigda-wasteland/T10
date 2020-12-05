@@ -1,4 +1,4 @@
-use std::any::{TypeId, type_name, Any};
+use std::any::{TypeId, Any, type_name};
 use std::marker::PhantomData;
 use std::mem::{MaybeUninit, ManuallyDrop};
 use std::ptr::null_mut;
@@ -76,14 +76,15 @@ pub trait DynBase {
     fn dyn_tyck(&self, tyck_info: &TypeCheckInfo) -> bool;
     fn dyn_tyck_info(&self) -> TypeCheckInfo;
 
-    // TODO differ between `as_ptr_borrow` and `as_ptr_take`
-    unsafe fn as_ptr(&self) -> *mut ();
+    unsafe fn get_ref(&self) -> *const ();
+
+    unsafe fn get_mut_ref(&self) -> *mut ();
 
     #[cfg(not(debug_assertions))]
-    unsafe fn take_out(&mut self, dest: *mut ());
+    unsafe fn move_out(&mut self, dest: *mut ());
 
     #[cfg(debug_assertions)]
-    unsafe fn take_out(&mut self, dest: *mut (), dest_ty: TypeId);
+    unsafe fn move_out_ck(&mut self, dest: *mut (), dest_ty: TypeId);
 }
 
 impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
@@ -103,28 +104,46 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
         <Void as StaticBase<Ts>>::tyck_info()
     }
 
-    unsafe fn as_ptr(&self) -> *mut () {
-        match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
-            GcInfo::SharedWithHost => self.data.borrow_ptr() as *mut (),
-            GcInfo::MutSharedWithHost => self.data.borrow_ptr() as *mut (),
-            GcInfo::Owned => self.data.borrow_value() as *mut (),
+    unsafe fn get_ref(&self) -> *const () {
+        let ret = match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
+            GcInfo::Owned => self.data.borrow_value() as *const (),
+            GcInfo::SharedWithHost => self.data.borrow_ptr() as *const (),
+            GcInfo::MutSharedWithHost =>
+                unreachable!("cannot immutably share since already mutably shared"),
             GcInfo::MovedToHost => unreachable!("cannot use moved value"),
             GcInfo::Dropped => unreachable!("cannot use dropped value"),
-            GcInfo::Null => null_mut()
-        }
+            GcInfo::Null => unreachable!("null pointer should not occur at this layer")
+        };
+        ret
+    }
+
+    unsafe fn get_mut_ref(&self) -> *mut () {
+        let ret = match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
+            GcInfo::Owned => self.data.borrow_value() as *mut (),
+            GcInfo::SharedWithHost =>
+                unreachable!("cannot mutably share since already immutably shared"),
+            GcInfo::MutSharedWithHost =>
+                unreachable!("cannot mutably share since already mutably shared"),
+            GcInfo::MovedToHost => unreachable!("cannot use moved value"),
+            GcInfo::Dropped => unreachable!("cannot use dropped value"),
+            GcInfo::Null => unreachable!("null pointer should not occur at this layer")
+        };
+        ret
     }
 
     #[cfg(not(debug_assertions))]
-    unsafe fn take_out(&mut self, dest: *mut ()) {
+    unsafe fn move_out(&mut self, dest: *mut ()) {
         let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
         dest.write(self.data.take_value());
+        self.gc_info.store(GcInfo::Dropped as u8, SeqCst)
     }
 
     #[cfg(debug_assertions)]
-    unsafe fn take_out(&mut self, dest: *mut (), dest_ty: TypeId) {
+    unsafe fn move_out_ck(&mut self, dest: *mut (), dest_ty: TypeId) {
         debug_assert_eq!(dest_ty, TypeId::of::<MaybeUninit<Ts>>());
         let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
         dest.write(self.data.take_value());
+        self.gc_info.store(GcInfo::Dropped as u8, SeqCst)
     }
 }
 
