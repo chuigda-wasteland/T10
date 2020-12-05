@@ -42,6 +42,10 @@ impl<'a, T> VMVec<'a, T> {
 }
 
 impl<'a> StaticBase<VMGenericVec<'a>> for Void {
+    fn base_type_id() -> TypeId {
+        TypeId::of::<VMVec<Void>>()
+    }
+
     fn tyck_info() -> TypeCheckInfo {
         TypeCheckInfo::Container(TypeId::of::<VMVec<Void>>(), vec![])
     }

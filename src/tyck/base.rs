@@ -4,6 +4,7 @@ use crate::tyck::{TypeCheckInfo, FFIAction};
 use crate::void::Void;
 
 pub trait StaticBase<T> {
+    fn base_type_id() -> TypeId;
     fn tyck_info() -> TypeCheckInfo;
     fn tyck(tyck_info: &TypeCheckInfo) -> bool;
     fn ffi_action() -> FFIAction;
@@ -14,6 +15,10 @@ trait StaticBaseImpl<T> {
 }
 
 impl<T: 'static> StaticBase<T> for Void {
+    #[inline] default fn base_type_id() -> TypeId {
+        TypeId::of::<T>()
+    }
+
     #[inline] default fn tyck_info() -> TypeCheckInfo {
         TypeCheckInfo::SimpleType(TypeId::of::<T>())
     }
