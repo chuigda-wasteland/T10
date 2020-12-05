@@ -90,7 +90,7 @@ impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
 
     unsafe fn from_value_l1(value: Value<'a>) -> &'a T {
         debug_assert!(!value.is_null());
-        unimplemented!()
+        value.as_ref()
     }
 }
 
@@ -116,7 +116,7 @@ impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
 
     #[inline] unsafe fn from_value_l1(value: Value<'a>) -> &'a mut T {
         debug_assert!(!value.is_null());
-        unimplemented!()
+        value.as_mut()
     }
 }
 

@@ -1,6 +1,6 @@
 use std::any::{TypeId, Any, type_name};
 use std::marker::PhantomData;
-use std::mem::{MaybeUninit, ManuallyDrop};
+use std::mem::{MaybeUninit, ManuallyDrop, transmute};
 use std::ptr::{NonNull, null_mut};
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering::SeqCst;
@@ -89,7 +89,7 @@ pub trait DynBase {
     fn gc_info(&self) -> GcInfo;
     fn set_gc_info(&mut self, gc_info: GcInfo);
 
-    unsafe fn get_ref(&self) -> NonNull<()>;
+    unsafe fn get_ptr(&self) -> NonNull<()>;
 
     #[cfg(not(debug_assertions))]
     unsafe fn move_out(&mut self, dest: *mut ());
@@ -123,7 +123,7 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
         self.set_gc_info_impl(gc_info)
     }
 
-    unsafe fn get_ref(&self) -> NonNull<()> {
+    unsafe fn get_ptr(&self) -> NonNull<()> {
         match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
             GcInfo::Owned => self.borrow_value(),
             GcInfo::SharedWithHost | GcInfo::MutSharedWithHost => self.borrow_ptr(),
@@ -245,7 +245,7 @@ impl<'a> Value<'a> {
         }
     }
 
-    #[inline] pub fn gc_info(&self) -> GcInfo {
+    pub fn gc_info(&self) -> GcInfo {
         if self.is_value() {
             GcInfo::OnStack
         } else if self.is_null() {
@@ -261,6 +261,20 @@ impl<'a> Value<'a> {
         debug_assert!(!self.is_value());
         debug_assert!(!self.is_null());
         self.data.ptr.as_mut().unwrap().set_gc_info(gc_info);
+    }
+
+    #[inline] pub unsafe fn as_ref<T>(&self) -> &'a T {
+        debug_assert!(!self.is_value());
+        debug_assert!(!self.is_null());
+        let non_null = self.data.ptr.as_ref().unwrap().get_ptr().cast::<T>();
+        transmute::<&T, &'a T>(non_null.as_ref())
+    }
+
+    #[inline] pub unsafe fn as_mut<T>(&self) -> &'a mut T {
+        debug_assert!(!self.is_null());
+        debug_assert!(!self.is_value());
+        let mut non_null = self.data.ptr.as_ref().unwrap().get_ptr().cast::<T>();
+        transmute::<&mut T, &'a mut T>(non_null.as_mut())
     }
 }
 
