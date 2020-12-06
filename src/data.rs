@@ -9,7 +9,7 @@ use crate::tyck::base::StaticBase;
 use crate::tyck::TypeCheckInfo;
 use crate::void::Void;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum GcInfo {
     Owned = 0,
     SharedWithHost = 1,
