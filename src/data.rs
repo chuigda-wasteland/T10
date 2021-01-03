@@ -2,8 +2,6 @@ use std::any::{TypeId, Any, type_name};
 use std::marker::PhantomData;
 use std::mem::{MaybeUninit, ManuallyDrop, transmute};
 use std::ptr::{NonNull, null_mut};
-use std::sync::atomic::AtomicU8;
-use std::sync::atomic::Ordering::SeqCst;
 
 use crate::tyck::base::StaticBase;
 use crate::tyck::TypeCheckInfo;
@@ -42,7 +40,7 @@ union WrapperData<T> {
 
 pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
     data: WrapperData<Ta>,
-    gc_info: AtomicU8,
+    gc_info: u8,
     _phantom: PhantomData<&'a Ts>
 }
 
@@ -52,7 +50,7 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
             data: WrapperData {
                 value: ManuallyDrop::new(MaybeUninit::new(data))
             },
-            gc_info: AtomicU8::new(GcInfo::Owned as u8),
+            gc_info: GcInfo::Owned as u8,
             _phantom: PhantomData::default()
         }
     }
@@ -62,7 +60,7 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
             data: WrapperData {
                 ptr: unsafe { NonNull::new_unchecked(data as *const Ta as *mut Ta) }
             },
-            gc_info: AtomicU8::new(GcInfo::SharedWithHost as u8),
+            gc_info: GcInfo::SharedWithHost as u8,
             _phantom: PhantomData::default()
         }
     }
@@ -72,7 +70,7 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
             data: WrapperData {
                 ptr: unsafe { NonNull::new_unchecked(data as *mut Ta) }
             },
-            gc_info: AtomicU8::new(GcInfo::MutSharedWithHost as u8),
+            gc_info: GcInfo::MutSharedWithHost as u8,
             _phantom: PhantomData::default()
         }
     }
@@ -90,11 +88,11 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
     }
 
     #[inline] fn gc_info_impl(&self) -> GcInfo {
-        GcInfo::from_u8(self.gc_info.load(SeqCst))
+        GcInfo::from_u8(self.gc_info)
     }
 
     #[inline] fn set_gc_info_impl(&mut self, gc_info: GcInfo) {
-        self.gc_info.store(gc_info as u8, SeqCst)
+        self.gc_info = gc_info as u8
     }
 }
 
@@ -154,7 +152,7 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 
     unsafe fn get_ptr(&self) -> NonNull<()> {
-        match GcInfo::from_u8(self.gc_info.load(SeqCst)) {
+        match GcInfo::from_u8(self.gc_info) {
             GcInfo::Owned => self.borrow_value(),
             GcInfo::SharedWithHost | GcInfo::MutSharedWithHost => self.borrow_ptr(),
             GcInfo::MovedToHost => unreachable!("cannot use moved value"),
