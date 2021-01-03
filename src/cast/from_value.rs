@@ -1,3 +1,14 @@
+//! 从 `Value` 到 Rust 对象的转换
+//!
+//! “Rust 传送值给 T10” 和 “T10 传送值给 Rust” 两种操作之间存在一个很大的不同之处：从 Rust 传给
+//! T10 是个 “一锤子买卖”，而 T10 传给 Rust 时则需要考虑 Rust 函数返回之后，所传递 `Value`
+//! 的 GC 标记。此外，当一个 `Rust` 函数有多个参数时，任何一个 `Value` 都可能失败，因此需要在一个
+//! `Value` 的转换操作失败时回滚前面的所有操作。
+//!
+//! 因此，`FromValue` 操作实质上被拆分为两步：
+//!   - 检查并更新 `Value` 的 GC 信息，并且获得一个用于恢复/回滚的 RAII 对象
+//!   - 进行实际的数据拷贝/共享/转移
+
 use std::any::TypeId;
 use std::mem::MaybeUninit;
 
@@ -8,9 +19,17 @@ use crate::tyck::base::StaticBase;
 use crate::tyck::FFIAction;
 use crate::data::GcInfo::{MutSharedWithHost, SharedWithHost};
 
+/// `GcInfoGuard` 是一个用于实现 `GcInfo` 更新的 RAII 装置
+///
+/// 当 Rust 函数成功返回时，像 `SharedWithRust` 或者 `MutSharedWithRust` 一类的状态需要恢复。
+/// 当后面的参数转换失败时，像 `SharedWithRust`, `MutSharedWithRust` 或者 `MovedToRust`
+/// 一类的操作需要撤销。
 pub struct GcInfoGuard<'a> {
+    /// 被管理的 `Value`
     value: &'a Value<'a>,
+    /// 当 Rust 函数成功返回之后所要进行的 `GcInfo` 更新
     on_finish: Option<GcInfo>,
+    /// 当函数调用失败时所要进行的 `GcInfo` 回滚
     on_yank: Option<GcInfo>
 }
 
@@ -51,21 +70,25 @@ impl<'a> Drop for GcInfoGuard<'a> {
     }
 }
 
+/// 在这一层 specialization 中特殊处理 `Option<T>` 类型
 pub trait FromValue<'a, T> {
     fn lifetime_check(value: &'a Value<'a>) -> Result<GcInfoGuard<'a>, TError>;
     unsafe fn from_value(value: &'a Value<'a>) -> T;
 }
 
+/// 在这一层 specialization 中处理 `&T` 和 `&mut T`
 pub trait FromValueL1<'a, T> {
     unsafe fn lifetime_check_l1(value: &'a Value<'a>) -> Result<GcInfoGuard<'a>, TError>;
     unsafe fn from_value_l1(value: &'a Value<'a>) -> T;
 }
 
+/// 在这一层 specialization 中特殊处理 `i64` 一类的值类型
 pub trait FromValueL2<'a, T> {
     unsafe fn lifetime_check_l2(value: &'a Value<'a>) -> Result<GcInfoGuard<'a>, TError>;
     unsafe fn from_value_l2(value: &'a Value<'a>) -> T;
 }
 
+/// 在这一层 specialization 中区分处理 `Copy` 和 `!Copy` 类型
 pub trait FromValueL3<'a, T> {
     unsafe fn lifetime_check_l3(value: &'a Value<'a>) -> Result<GcInfoGuard<'a>, TError>;
     unsafe fn from_value_l3(value: &'a Value<'a>, out: &mut MaybeUninit<T>);

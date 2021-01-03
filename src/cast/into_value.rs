@@ -1,25 +1,39 @@
+//! 从 Rust 对象到 `Value` 的转换
+
 use std::error::Error;
 
 use crate::data::{Value, StaticWrapper, DynBase};
 use crate::error::TError;
 use crate::void::Void;
 
+/// 在这一层 specialization 中特殊处理 `Result<T, E>`
+///
+/// 对 `Result<T, E>` 的处理只在从 Rust 函数向 T10 运行时返回一个值的时候进行。
 pub trait IntoValue<'a, T> {
      fn into_value(t: T) -> Result<Value<'a>, TError>;
 }
 
+/// 在这一层的 specialization 中特殊处理 `&Option<T>` 和 `&mut Option<T>`
+///
+/// `&Option<T>` 或者 `&mut Option<T>` 会被进一步视为 `Option<&T>` 和 `Option<&mut T>`。
+/// 这种特殊处理只会在从 Rust 函数向 T10 运行时返回一个值的时候进行。
 pub trait IntoValueNoexcept<'a, T> {
      fn into_value_noexcept(t: T) -> Result<Value<'a>, TError>;
 }
 
+/// 在这一层的 specialization 中特殊处理 `Option<T>`
 pub trait IntoValueL1<'a, T> {
      fn into_value_l1(t: T) -> Result<Value<'a>, TError>;
 }
 
+/// 在这一层的 specialization 中处理 `&T` 和 `&mut T`。
+///
+/// 从 Rust 环境向 T10 运行时传递的引用会被永久视为共享引用
 pub trait IntoValueL2<'a, T> {
      fn into_value_l2(t: T) -> Result<Value<'a>, TError>;
 }
 
+/// 在这一层的 specialization 中特殊处理 `i64` 之类的值类型
 pub trait IntoValueL3<'a, T> {
      fn into_value_l3(t: T) -> Result<Value<'a>, TError>;
 }
