@@ -10,30 +10,42 @@ use crate::data::GcInfo::{MutSharedWithHost, SharedWithHost};
 
 pub struct GcInfoGuard<'a> {
     value: &'a Value<'a>,
-    gc_info: Option<GcInfo>
+    on_finish: Option<GcInfo>,
+    on_yank: Option<GcInfo>
 }
 
 impl<'a> GcInfoGuard<'a> {
-    pub fn new(value: &'a Value<'a>, gc_info: GcInfo) -> Self {
+    pub fn new(value: &'a Value<'a>, on_finish: GcInfo, on_yank: GcInfo) -> Self {
         Self {
             value,
-            gc_info: Some(gc_info)
+            on_finish: Some(on_finish),
+            on_yank: Some(on_yank)
         }
     }
 
     pub fn no_action(value: &'a Value<'a>) -> Self {
         Self {
             value,
-            gc_info: None
+            on_finish: None,
+            on_yank: None
         }
+    }
+
+    pub fn finish(&mut self) {
+        if let Some(on_finish) = self.on_finish {
+            unsafe {
+                self.value.set_gc_info(on_finish);
+            }
+        }
+        let _ = self.on_yank.take();
     }
 }
 
 impl<'a> Drop for GcInfoGuard<'a> {
     fn drop(&mut self) {
-        if let Some(gc_info) = self.gc_info {
+        if let Some(on_yank) = self.on_yank {
             unsafe {
-                self.value.set_gc_info(gc_info)
+                self.value.set_gc_info(on_yank);
             }
         }
     }
@@ -108,7 +120,7 @@ impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
         let actual = value.gc_info();
         if actual == GcInfo::Owned || actual == GcInfo::SharedWithHost {
             value.set_gc_info(SharedWithHost);
-            Ok(GcInfoGuard::new(value, actual))
+            Ok(GcInfoGuard::new(value, actual, actual))
         } else {
             Err(LifetimeError::new(&INTO_REF_LIFETIMES, FFIAction::Share, actual).into())
         }
@@ -127,7 +139,7 @@ impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
         let actual = value.gc_info();
         if actual == GcInfo::Owned || actual == GcInfo::MutSharedWithHost {
             value.set_gc_info(MutSharedWithHost);
-            Ok(GcInfoGuard::new(value, actual))
+            Ok(GcInfoGuard::new(value, actual, actual))
         } else {
             Err(LifetimeError::new(&INTO_MUT_REF_LIFETIMES, FFIAction::MutShare, actual).into())
         }
@@ -205,7 +217,7 @@ impl<'a, T> FromValueL3<'a, T> for Void where Void: StaticBase<T> {
         let actual = value.gc_info();
         if actual == GcInfo::Owned {
             value.set_gc_info(GcInfo::MovedToHost);
-            Ok(GcInfoGuard::no_action(value))
+            Ok(GcInfoGuard::new(value, GcInfo::MovedToHost, GcInfo::Owned))
         } else {
             Err(LifetimeError::new(&MOVE_TYPE_LIFETIMES, FFIAction::Move, actual).into())
         }
