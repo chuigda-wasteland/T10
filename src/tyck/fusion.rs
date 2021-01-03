@@ -1,3 +1,5 @@
+//! `fusion` 模块用于实现 Rust FFI 时所需要的“编译期”类型检查
+
 use std::error::Error;
 
 use crate::tyck::{TypeCheckInfo, FFIAction};

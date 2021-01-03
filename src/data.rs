@@ -1,3 +1,7 @@
+//! `data` 模块实现了 T10 中数据的实际存储形式。
+//!
+//! T10 内存模型的文档可以看[这里](https://github.com/Pr47/T10/issues/8#issuecomment-739257424)
+
 use std::any::{TypeId, Any, type_name};
 use std::marker::PhantomData;
 use std::mem::{MaybeUninit, ManuallyDrop, transmute};
@@ -7,14 +11,25 @@ use crate::tyck::base::StaticBase;
 use crate::tyck::TypeCheckInfo;
 use crate::void::Void;
 
+/// 堆上对象的状态
+///
+/// T10 在与 Rust 交互时，可以将虚拟机中的对象移动、借用、可变借用给 Rust。因此相比其他的虚拟机，
+/// T10 的堆对象拥有更多种状态
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum GcInfo {
+    /// T10 虚拟机拥有这个对象
     Owned = 0,
+    /// 这个对象正在 Rust 和 T10 之间共享
     SharedWithHost = 1,
+    /// 这个对象正在 Rust 和 T10 之间可变共享
     MutSharedWithHost = 2,
+    /// 这个对象已经被移动到 Rust 一侧
     MovedToHost = 3,
+    /// 这个对象已被回收
     Dropped = 4,
+    /// 这是一个空对象
     Null = 5,
+    /// 这是一个栈上对象
     OnStack = 6,
 }
 
