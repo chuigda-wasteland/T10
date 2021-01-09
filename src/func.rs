@@ -9,3 +9,4 @@ pub trait RustCallable<'a> {
     fn return_value_spec(&self) -> (TypeCheckInfo, FFIAction);
     unsafe fn call_prechecked(&self, args: &'a [Value<'a>]) -> Result<Value<'a>, TError>;
 }
+

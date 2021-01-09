@@ -28,7 +28,8 @@ pub trait IntoValueL1<'a, T> {
 
 /// 在这一层的 specialization 中处理 `&T` 和 `&mut T`。
 ///
-/// 从 Rust 环境向 T10 运行时传递的引用会被永久视为共享引用
+/// 从 Rust 环境向 T10 运行时传递的引用会被永久视为共享引用；禁止在 T10 通过 FFI 调用 Rust 函数时，
+/// Rust 函数向 T10 返回任何引用。
 pub trait IntoValueL2<'a, T> {
      fn into_value_l2(t: T) -> Result<Value<'a>, TError>;
 }
