@@ -17,7 +17,7 @@ use crate::error::{TError, NullError, LifetimeError};
 use crate::void::Void;
 use crate::tyck::base::StaticBase;
 use crate::tyck::FFIAction;
-use crate::data::GcInfo::{MutSharedWithHost, SharedWithHost};
+use crate::data::GcInfo::{MutSharedWithHost, SharedWithHost, Owned};
 
 /// `GcInfoGuard` 是一个用于实现 `GcInfo` 更新的 RAII 装置
 ///
@@ -141,11 +141,15 @@ impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
     unsafe fn lifetime_check_l1(value: &'a Value<'a>) -> Result<GcInfoGuard<'a>, TError> {
         debug_assert!(!value.is_null());
         let actual = value.gc_info();
-        if actual == GcInfo::Owned || actual == GcInfo::SharedWithHost {
-            value.set_gc_info(SharedWithHost);
-            Ok(GcInfoGuard::new(value, actual, actual))
-        } else {
-            Err(LifetimeError::new(&INTO_REF_LIFETIMES, FFIAction::Share, actual).into())
+        match actual {
+            GcInfo::Owned => {
+                value.set_gc_info(SharedWithHost);
+                Ok(GcInfoGuard::new(value, Owned, Owned))
+            },
+            GcInfo::SharedWithHost => {
+                Ok(GcInfoGuard::no_action(value))
+            },
+            _ => Err(LifetimeError::new(&INTO_REF_LIFETIMES, FFIAction::Share, actual).into())
         }
     }
 
@@ -160,9 +164,9 @@ impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
     unsafe fn lifetime_check_l1(value: &'a Value<'a>) -> Result<GcInfoGuard<'a>, TError> {
         debug_assert!(!value.is_null());
         let actual = value.gc_info();
-        if actual == GcInfo::Owned || actual == GcInfo::MutSharedWithHost {
+        if actual == GcInfo::Owned {
             value.set_gc_info(MutSharedWithHost);
-            Ok(GcInfoGuard::new(value, actual, actual))
+            Ok(GcInfoGuard::new(value, GcInfo::Owned, GcInfo::Owned))
         } else {
             Err(LifetimeError::new(&INTO_MUT_REF_LIFETIMES, FFIAction::MutShare, actual).into())
         }
