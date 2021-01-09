@@ -1,3 +1,5 @@
+//! `error` 模块中定义了错误处理工具类
+
 use std::any::TypeId;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -5,12 +7,18 @@ use std::fmt::{Display, Formatter};
 use crate::data::GcInfo;
 use crate::tyck::FFIAction;
 
+/// T10 中所使用的错误处理类型
 #[derive(Debug)]
 pub enum TError {
+    /// （运行时）生存期检查错误
     LifetimeError(LifetimeError),
+    /// 类型错误
     TypeError(TypeError),
+    /// 空指针/空值错误
     NullError(NullError),
+    /// 非受检异常
     UncheckedException(String),
+    /// 用户定义的受检异常
     UserException(Box<dyn 'static + Error>)
 }
 

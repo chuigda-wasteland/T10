@@ -123,20 +123,34 @@ impl<'a, Ta: 'a, Ts: 'static> Drop for Wrapper<'a, Ta, Ts> {
 
 pub type StaticWrapper<T> = Wrapper<'static, T, T>;
 
+/// 负责在运行时从 `Wrapper` 中提取信息
+///
+/// 从方法签名上来看，`DynBase` 的所有方法都带有 `self` 参数，而 `StaticBased``StaticBase` 偏向于“编译”期的检查工作，而 `DynBase` 更偏向于运行时的动态分发。
 pub trait DynBase {
+    /// 获取类型 ID
     fn dyn_type_id(&self) -> std::any::TypeId;
+    /// 获取类型名
     fn dyn_type_name(&self) -> &'static str;
+    /// 运行时类型检测
     fn dyn_tyck(&self, tyck_info: &TypeCheckInfo) -> bool;
+    /// 运行时获取类型检查信息
     fn dyn_tyck_info(&self) -> TypeCheckInfo;
 
+    /// 获取 GC 信息
     fn gc_info(&self) -> GcInfo;
+    /// 设置 GC 信息
     fn set_gc_info(&mut self, gc_info: GcInfo);
 
+    /// 获取指向实际数据的指针
     unsafe fn get_ptr(&self) -> NonNull<()>;
 
+    /// 将数据移动到 dest 中。dest 应为一个 `MaybeUninit`
     #[cfg(not(debug_assertions))]
     unsafe fn move_out(&mut self, dest: *mut ());
 
+    /// 将数据移动到 dest中。dest 应为一个 `MaybeUninit`
+    ///
+    /// 这是带有运行时类型检查的版本，在 debug 模式下使用
     #[cfg(debug_assertions)]
     unsafe fn move_out_ck(&mut self, dest: *mut (), dest_ty: TypeId);
 }
@@ -192,6 +206,7 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 }
 
+/// “值类型对象”的类型标记
 #[derive(Copy, Clone)]
 pub enum ValueType {
     Int = 1,
@@ -216,16 +231,24 @@ impl From<u8> for ValueType {
     }
 }
 
+/// 一个通用的“值”中所存储的数据
 #[repr(C)]
 pub union ValueData {
+    /// 堆对象指针
     pub(crate) ptr: *mut dyn DynBase,
+    /// 整数
     pub(crate) int: i64,
+    /// 浮点数
     pub(crate) float: f64,
+    /// 字符
     pub(crate) ch: char,
+    /// 字节
     pub(crate) byte: u8,
+    /// 布尔
     pub(crate) boolean: bool
 }
 
+/// 一个通用的“值”，附带必要的类型信息
 #[repr(C)]
 pub struct Value<'a> {
     pub(crate) data: ValueData,
@@ -246,11 +269,16 @@ impl<'a> Value<'a> {
         }
     }
 
+    /// 创建一个空指针
     #[inline] pub fn null_ptr() -> Self {
         Self::new(ValueData { ptr: null_mut::<StaticWrapper<Void>>() as *mut dyn DynBase },
                   NULL_MASK)
     }
 
+    /// 创建一个空值
+    ///
+    /// 由于 Pr47 采用值类型+引用类型的方式，空值和空指针并不是等同的概念。请见
+    /// https://github.com/Pr47/doc47/issues/9
     #[inline] pub fn null_value(value_type: ValueType) -> Self {
         Self::new(ValueData { int: 0 }, VALUE_MASK | NULL_MASK | (value_type as u8))
     }

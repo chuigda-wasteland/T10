@@ -1,3 +1,5 @@
+//! `func` 模块中定义了与 FFI 调用函数相关的接口
+
 use crate::data::Value;
 use crate::error::TError;
 use crate::tyck::{TypeCheckInfo, FFIAction};
