@@ -7,6 +7,7 @@ use crate::tyck::{TypeCheckInfo, FFIAction};
 use crate::tyck::base::StaticBase;
 use crate::void::Void;
 
+pub type ExceptionSpec = Option<TypeId>;
 pub type Nullable = bool;
 
 pub trait FusionRV<T> {
@@ -15,7 +16,7 @@ pub trait FusionRV<T> {
     fn ffi_action_rv() -> FFIAction;
 
     fn nullable_rv() -> Nullable;
-    fn exception() -> Option<TypeId>;
+    fn exception() -> ExceptionSpec;
 }
 
 pub trait FusionRV2<T> {
@@ -53,7 +54,7 @@ impl<T> FusionRV<T> for Void where Void: FusionRV2<T> {
         <Void as FusionRV2<T>>::nullable_rv2()
     }
 
-    #[inline] default fn exception() -> Option<TypeId> {
+    #[inline] default fn exception() -> ExceptionSpec {
         None
     }
 
@@ -75,7 +76,7 @@ impl<T, E> FusionRV<Result<T, E>> for Void where Void: FusionRV2<T>, E: 'static 
         <Void as FusionRV2<T>>::nullable_rv2()
     }
 
-    #[inline] fn exception() -> Option<TypeId> {
+    #[inline] fn exception() -> ExceptionSpec {
         Some(TypeId::of::<E>())
     }
 

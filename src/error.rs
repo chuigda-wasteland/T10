@@ -14,6 +14,8 @@ pub enum TError {
     LifetimeError(LifetimeError),
     /// 类型错误
     TypeError(TypeError),
+    /// 参数列表长度错误
+    ArgLenError(ArgLenError),
     /// 空指针/空值错误
     NullError(NullError),
     /// 非受检异常
@@ -160,6 +162,24 @@ impl Display for TypeError {
         } else {
             Ok(())
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ArgLenError {
+    pub expected: usize,
+    pub got: usize
+}
+
+impl ArgLenError {
+    pub fn new(expected: usize, got: usize) -> Self {
+        Self { expected, got }
+    }
+}
+
+impl Display for ArgLenError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ArgLenError: expected {} arguments, got {}", self.expected, self.got)
     }
 }
 
