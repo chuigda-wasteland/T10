@@ -57,6 +57,7 @@ impl Display for TError {
         match self {
             TError::LifetimeError(e) => write!(f, "{}", e),
             TError::TypeError(e) => write!(f, "{}", e),
+            TError::ArgLenError(e) => write!(f, "{}", e),
             TError::NullError(e) => write!(f, "{}", e),
             TError::UncheckedException(e) => write!(f, "{}", e),
             TError::UserException(e) => write!(f, "{}", e)

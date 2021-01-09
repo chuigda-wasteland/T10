@@ -3,7 +3,7 @@
 use std::marker::PhantomData;
 
 use crate::cast::from_value::FromValue;
-use crate::cast::into_value::IntoValueL1;
+use crate::cast::into_value::IntoValue;
 use crate::data::Value;
 use crate::error::TError;
 use crate::tyck::{FFIAction, TypeCheckInfo};
@@ -23,7 +23,7 @@ pub struct RustFunction<'a, F, A, B, RET>
           RET: 'a,
           Void: FromValue<'a, A> + Fusion<A>,
           Void: FromValue<'a, B> + Fusion<B>,
-          Void: IntoValueL1<'a, RET> + FusionRV<RET>
+          Void: IntoValue<'a, RET> + FusionRV<RET>
 {
     f: F,
     _phantom: PhantomData<(&'a (), A, B, RET)>
@@ -36,7 +36,7 @@ impl<'a, F, A, B, RET> RustCallable<'a> for RustFunction<'a, F, A, B, RET>
           RET: 'a,
           Void: FromValue<'a, A> + Fusion<A>,
           Void: FromValue<'a, B> + Fusion<B>,
-          Void: IntoValueL1<'a, RET> + FusionRV<RET> {
+          Void: IntoValue<'a, RET> + FusionRV<RET> {
     fn param_specs(&self) -> Vec<(TypeCheckInfo, FFIAction, Nullable)> {
         vec![
             (<Void as Fusion<A>>::fusion_tyck_info(),
@@ -55,6 +55,19 @@ impl<'a, F, A, B, RET> RustCallable<'a> for RustFunction<'a, F, A, B, RET>
     }
 
     unsafe fn call_prechecked(&self, args: &'a [Value<'a>]) -> Result<Value<'a>, TError> {
-        todo!()
+        debug_assert_eq!(args.len(), 2);
+        let arg1 = args.get_unchecked(0);
+        let arg2 = args.get_unchecked(1);
+        let mut arg1_guard = <Void as FromValue<A>>::lifetime_check(arg1)?;
+        let mut arg2_guard = <Void as FromValue<B>>::lifetime_check(arg2)?;
+
+        let ret = (self.f)(
+            <Void as FromValue<A>>::from_value(arg1),
+            <Void as FromValue<B>>::from_value(arg2)
+        );
+        arg1_guard.finish();
+        arg2_guard.finish();
+
+        <Void as IntoValue<RET>>::into_value(ret)
     }
 }
