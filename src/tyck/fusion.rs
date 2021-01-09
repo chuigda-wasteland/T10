@@ -1,31 +1,37 @@
 //! `fusion` 模块用于实现 Rust FFI 时所需要的“编译期”类型检查
 
+use std::any::TypeId;
 use std::error::Error;
 
 use crate::tyck::{TypeCheckInfo, FFIAction};
 use crate::tyck::base::StaticBase;
 use crate::void::Void;
 
+pub type Nullable = bool;
+
 pub trait FusionRV<T> {
     fn tyck_info_rv() -> TypeCheckInfo;
     fn tyck_rv(tyck_info: &TypeCheckInfo) -> bool;
-    fn nullable_rv() -> bool;
-    fn exception() -> bool;
     fn ffi_action_rv() -> FFIAction;
+
+    fn nullable_rv() -> Nullable;
+    fn exception() -> Option<TypeId>;
 }
 
 pub trait FusionRV2<T> {
     fn tyck_info_rv2() -> TypeCheckInfo;
     fn tyck_rv2(tyck_info: &TypeCheckInfo) -> bool;
-    fn nullable_rv2() -> bool;
     fn ffi_action_rv2() -> FFIAction;
+
+    fn nullable_rv2() -> Nullable;
 }
 
 pub trait Fusion<T> {
     fn fusion_tyck_info() -> TypeCheckInfo;
     fn fusion_tyck(tyck_info: &TypeCheckInfo) -> bool;
-    fn nullable() -> bool;
     fn fusion_ffi_action() -> FFIAction;
+
+    fn nullable() -> Nullable;
 }
 
 pub trait Fusion2<T> {
@@ -47,8 +53,8 @@ impl<T> FusionRV<T> for Void where Void: FusionRV2<T> {
         <Void as FusionRV2<T>>::nullable_rv2()
     }
 
-    #[inline] default fn exception() -> bool {
-        false
+    #[inline] default fn exception() -> Option<TypeId> {
+        None
     }
 
     #[inline] default fn ffi_action_rv() -> FFIAction {
@@ -69,8 +75,8 @@ impl<T, E> FusionRV<Result<T, E>> for Void where Void: FusionRV2<T>, E: 'static 
         <Void as FusionRV2<T>>::nullable_rv2()
     }
 
-    #[inline] fn exception() -> bool {
-        true
+    #[inline] fn exception() -> Option<TypeId> {
+        Some(TypeId::of::<E>())
     }
 
     #[inline] fn ffi_action_rv() -> FFIAction {
