@@ -18,7 +18,7 @@ pub enum TypeCheckInfo {
 /// 生存期检查信息
 ///
 /// 生存期检查信息在“编译”时生成，运行时用来确定对象如何在 Rust 和 `T10` 之间传递
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum FFIAction {
     /// 移动
     Move,

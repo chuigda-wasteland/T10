@@ -216,3 +216,108 @@ impl<'a, T: 'static> Fusion2<&'a mut T> for Void where Void: StaticBase<T> {
         FFIAction::MutShare
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::any::TypeId;
+
+    use crate::tyck::FFIAction;
+    use crate::tyck::TypeCheckInfo;
+    use crate::tyck::fusion::{ExceptionSpec, FusionRV};
+    use crate::void::Void;
+
+    fn type_check_info_assert(tyck_info: &TypeCheckInfo, type_ids: &[TypeId]) {
+        debug_assert_ne!(type_ids.len(), 0);
+        
+        match tyck_info {
+            &TypeCheckInfo::SimpleType(type_id) => {
+                assert_eq!(type_ids.len(), 1);
+                assert_eq!(type_ids[0], type_id);
+            },
+            TypeCheckInfo::Container(container_id, elements) => {
+                assert_ne!(type_ids.len(), 1);
+                assert_eq!(type_ids[0], *container_id);
+                // TODO this is temporary, and will be removed after we add binary containers
+                assert_eq!(elements.len(), 1);
+
+                type_check_info_assert(&elements[0], &type_ids[1..]);
+            }
+        }
+    }
+
+    fn test_type_infos_rv<T>(
+        type_id_sequence: &[TypeId],
+        expected_ffi_action: FFIAction,
+        expected_nullable: bool,
+        expected_exception: ExceptionSpec
+    ) where Void: FusionRV<T> {
+        let tyck_info = <Void as FusionRV<T>>::tyck_info_rv();
+        let ffi_action = <Void as FusionRV<T>>::ffi_action_rv();
+        let nullable = <Void as FusionRV<T>>::nullable_rv();
+        let exception = <Void as FusionRV<T>>::exception();
+
+        type_check_info_assert(&tyck_info, type_id_sequence);
+        assert_eq!(ffi_action, expected_ffi_action);
+        assert_eq!(nullable, expected_nullable);
+        assert_eq!(exception, expected_exception);
+    }
+
+    #[test]
+    fn test_fusion_rv_simple() {
+        test_type_infos_rv::<i64>(
+            &[TypeId::of::<i64>()], FFIAction::Copy, false, None as ExceptionSpec
+        );
+    }
+
+    #[test]
+    fn test_fusion_rv_move() {
+        test_type_infos_rv::<String>(
+            &[TypeId::of::<String>()], FFIAction::Move, false, None as ExceptionSpec
+        );
+    }
+
+    #[test]
+    fn test_fusion_rv_ref() {
+        test_type_infos_rv::<&i64>(
+            &[TypeId::of::<i64>()], FFIAction::Share, false, None as ExceptionSpec
+        );
+        test_type_infos_rv::<&mut i64>(
+            &[TypeId::of::<i64>()], FFIAction::MutShare, false, None as ExceptionSpec
+        );
+        test_type_infos_rv::<&String>(
+            &[TypeId::of::<String>()], FFIAction::Share, false, None as ExceptionSpec
+        );
+        test_type_infos_rv::<&mut String>(
+            &[TypeId::of::<String>()], FFIAction::MutShare, false, None as ExceptionSpec
+        );
+    }
+
+    #[test]
+    fn test_fusion_rv_nullable() {
+        type TestedType1 = Option<i64>;
+        type TestedType2 = Option<String>;
+        type TestedType3<'a> = Option<&'a i64>;
+        type TestedType4<'a> = Option<&'a mut i64>;
+        type TestedType5<'a> = Option<&'a String>;
+        type TestedType6<'a> = Option<&'a mut String>;
+
+        test_type_infos_rv::<TestedType1>(
+            &[TypeId::of::<i64>()], FFIAction::Copy, true, None as ExceptionSpec
+        );
+        test_type_infos_rv::<TestedType2>(
+            &[TypeId::of::<String>()], FFIAction::Move, true, None as ExceptionSpec
+        );
+        test_type_infos_rv::<TestedType3>(
+            &[TypeId::of::<i64>()], FFIAction::Share, true, None as ExceptionSpec
+        );
+        test_type_infos_rv::<TestedType4>(
+            &[TypeId::of::<i64>()], FFIAction::MutShare, true, None as ExceptionSpec
+        );
+        test_type_infos_rv::<TestedType5>(
+            &[TypeId::of::<String>()], FFIAction::Share, true, None as ExceptionSpec
+        );
+        test_type_infos_rv::<TestedType6>(
+            &[TypeId::of::<String>()], FFIAction::MutShare, true, None as ExceptionSpec
+        );
+    }
+}
