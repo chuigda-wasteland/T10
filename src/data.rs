@@ -278,7 +278,7 @@ impl<'a> Value<'a> {
     /// 创建一个空值
     ///
     /// 由于 Pr47 采用值类型+引用类型的方式，空值和空指针并不是等同的概念。请见
-    /// https://github.com/Pr47/doc47/issues/9
+    /// <https://github.com/Pr47/doc47/issues/9>
     #[inline] pub fn null_value(value_type: ValueType) -> Self {
         Self::new(ValueData { int: 0 }, VALUE_MASK | NULL_MASK | (value_type as u8))
     }
@@ -305,13 +305,11 @@ impl<'a> Value<'a> {
                 ValueType::Bool    => TypeId::of::<bool>(),
                 ValueType::AnyType => TypeId::of::<dyn Any>()
             }
+        } else if self.is_null() {
+            unreachable!("should not use type_id on null value")
         } else {
-            if self.is_null() {
-                unreachable!("should not use type_id on null value")
-            } else {
-                unsafe {
-                    self.data.ptr.as_ref().unwrap().dyn_type_id()
-                }
+            unsafe {
+                self.data.ptr.as_ref().unwrap().dyn_type_id()
             }
         }
     }

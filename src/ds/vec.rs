@@ -53,8 +53,7 @@ impl<'a> StaticBase<VMGenericVec<'a>> for Void {
     fn tyck(tyck_info: &TypeCheckInfo) -> bool {
         match tyck_info {
             TypeCheckInfo::Container(container_type, type_params) => {
-                *container_type == TypeId::of::<VMVec<Void>>()
-                    && type_params.len() == 0
+                *container_type == TypeId::of::<VMVec<Void>>() && type_params.is_empty()
             },
             _ => false
         }
@@ -90,8 +89,7 @@ impl<'a, T> StaticBase<VMVec<'a, T>> for Void
             TypeCheckInfo::Container(container_type, type_params) => {
                 *container_type == TypeId::of::<VMVec<Void>>()
                     && (type_params.len() == 1
-                    && <Void as StaticBase<T>>::tyck(&type_params[0]))
-                    || type_params.len() == 0
+                    && <Void as StaticBase<T>>::tyck(&type_params[0])) || type_params.is_empty()
             },
             _ => false
         }
