@@ -1,4 +1,7 @@
-![Early POC](https://img.shields.io/badge/status-early%20poc-orange) ![Don't use](https://img.shields.io/badge/dont-use-critical)
+[![Design doc](https://img.shields.io/badge/design%20doc-doc47-brightgreen)](https://github.com/Pr47/T10)
+![Not published](https://img.shields.io/badge/not-published-yellow)
+![Early POC](https://img.shields.io/badge/status-early%20poc-orange)
+![Don't use](https://img.shields.io/badge/dont-use-critical)
 
 # Project-47 2021 plan
 
