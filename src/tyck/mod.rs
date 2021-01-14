@@ -9,6 +9,8 @@ pub mod fusion;
 /// 之后可能改用一个 arena 来管理所有的 `TypeCheckInfo`。
 #[derive(Debug)]
 pub enum TypeCheckInfo {
+    /// 不进行类型检查
+    Bypass,
     /// 简单类型
     SimpleType(std::any::TypeId),
     /// 容器类型
@@ -27,5 +29,7 @@ pub enum FFIAction {
     /// 共享
     Share,
     /// 可变共享
-    MutShare
+    MutShare,
+    /// 不进行生存期检查
+    Bypass
 }

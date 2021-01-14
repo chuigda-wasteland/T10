@@ -6,6 +6,7 @@ use std::error::Error;
 use crate::tyck::{TypeCheckInfo, FFIAction};
 use crate::tyck::base::StaticBase;
 use crate::void::Void;
+use crate::data::Value;
 
 pub type ExceptionSpec = Option<TypeId>;
 pub type Nullable = bool;
@@ -182,6 +183,24 @@ impl<T> Fusion<Option<T>> for Void where Void: Fusion2<T> {
     }
 }
 
+impl Fusion<Value> for Void {
+    #[inline] fn fusion_tyck_info() -> TypeCheckInfo {
+        TypeCheckInfo::Bypass
+    }
+
+    #[inline] fn fusion_tyck(_tyck_info: &TypeCheckInfo) -> bool {
+        true
+    }
+
+    #[inline] fn fusion_ffi_action() -> FFIAction {
+        FFIAction::Bypass
+    }
+
+    #[inline] fn nullable() -> bool {
+        true
+    }
+}
+
 impl<T> Fusion2<T> for Void where Void: StaticBase<T> {
     #[inline] default fn fusion_tyck_info2() -> TypeCheckInfo {
         <Void as StaticBase<T>>::tyck_info()
@@ -239,6 +258,9 @@ mod test {
         debug_assert_ne!(type_ids.len(), 0);
         
         match tyck_info {
+            &TypeCheckInfo::Bypass => {
+                assert_eq!(type_ids.len(), 0);
+            },
             &TypeCheckInfo::SimpleType(type_id) => {
                 assert_eq!(type_ids.len(), 1);
                 assert_eq!(type_ids[0], type_id);

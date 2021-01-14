@@ -70,7 +70,7 @@ impl<'a> Drop for GcInfoGuard<'a> {
     }
 }
 
-/// 在这一层 specialization 中特殊处理 `Option<T>` 类型
+/// 在这一层 specialization 中特殊处理 `Option<T>` 和 `Value` 类型
 pub trait FromValue<'a, T> {
     fn lifetime_check(value: &'a Value) -> Result<GcInfoGuard<'a>, TError>;
     unsafe fn from_value(value: &'a Value) -> T;
@@ -119,6 +119,16 @@ impl<'a, T> FromValue<'a, Option<T>> for Void where Void: FromValueL1<'a, T> {
 
     #[inline] unsafe fn from_value(value: &'a Value) -> Option<T> {
         Some(<Void as FromValueL1<'a, T>>::from_value_l1(value))
+    }
+}
+
+impl<'a> FromValue<'a, Value> for Void {
+    fn lifetime_check(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
+        Ok(GcInfoGuard::no_action(value))
+    }
+
+    unsafe fn from_value(value: &'a Value) -> Value {
+        *value
     }
 }
 

@@ -93,6 +93,12 @@ impl<'a, T> IntoValueL1<'a, Option<T>> for Void where Void: IntoValueL2<'a, T> {
     }
 }
 
+impl<'a> IntoValueL1<'a, Value> for Void {
+    #[inline] fn into_value_l1(t: Value) -> Result<Value, TError> {
+        Ok(t)
+    }
+}
+
 impl<'a, T> IntoValueL2<'a, T> for Void where T: 'static {
     #[inline] default fn into_value_l2(t: T) -> Result<Value, TError> {
         <Void as IntoValueL3<'a, T>>::into_value_l3(t)

@@ -232,6 +232,7 @@ impl From<u8> for ValueType {
 }
 
 /// 一个通用的“值”中所存储的数据
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub union ValueData {
     /// 堆对象指针
@@ -249,6 +250,7 @@ pub union ValueData {
 }
 
 /// 一个通用的“值”，附带必要的运行时类型检查信息
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Value {
     pub(crate) data: ValueData,
