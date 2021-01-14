@@ -248,24 +248,22 @@ pub union ValueData {
     pub(crate) boolean: bool
 }
 
-/// 一个通用的“值”，附带必要的类型信息
+/// 一个通用的“值”，附带必要的运行时类型检查信息
 #[repr(C)]
-pub struct Value<'a> {
+pub struct Value {
     pub(crate) data: ValueData,
-    tag: u8,
-    _phantom: PhantomData<&'a ()>
+    tag: u8
 }
 
 const VALUE_MASK      : u8 = 0b10000000;
 const NULL_MASK       : u8 = 0b01000000;
 const VALUE_TYPE_MASK : u8 = 0b00000111;
 
-impl<'a> Value<'a> {
+impl Value {
     #[inline] pub(crate) fn new(data: ValueData, tag: u8) -> Self {
         Self {
             data,
-            tag,
-            _phantom: PhantomData::default()
+            tag
         }
     }
 
@@ -332,52 +330,52 @@ impl<'a> Value<'a> {
         self.data.ptr.as_mut().unwrap().set_gc_info(gc_info);
     }
 
-    #[inline] pub unsafe fn as_ref<T>(&self) -> &'a T {
+    #[inline] pub unsafe fn as_ref<T>(&self) -> &T {
         debug_assert!(!self.is_value());
         debug_assert!(!self.is_null());
         let non_null = self.data.ptr.as_ref().unwrap().get_ptr().cast::<T>();
-        transmute::<&T, &'a T>(non_null.as_ref())
+        transmute::<&T, &T>(non_null.as_ref())
     }
 
-    #[inline] pub unsafe fn as_mut<T>(&self) -> &'a mut T {
+    #[inline] pub unsafe fn as_mut<T>(&self) -> &mut T {
         debug_assert!(!self.is_null());
         debug_assert!(!self.is_value());
         let mut non_null = self.data.ptr.as_ref().unwrap().get_ptr().cast::<T>();
-        transmute::<&mut T, &'a mut T>(non_null.as_mut())
+        transmute::<&mut T, &mut T>(non_null.as_mut())
     }
 }
 
-impl<'a> From<*mut dyn DynBase> for Value<'a> {
+impl<'a> From<*mut dyn DynBase> for Value {
     fn from(ptr: *mut dyn DynBase) -> Self {
         Self::new(ValueData { ptr }, 0)
     }
 }
 
-impl<'a> From<i64> for Value<'a> {
+impl<'a> From<i64> for Value {
     fn from(int: i64) -> Self {
         Self::new(ValueData { int }, VALUE_MASK | ValueType::Int as u8)
     }
 }
 
-impl<'a> From<f64> for Value<'a> {
+impl<'a> From<f64> for Value {
     fn from(float: f64) -> Self {
         Self::new(ValueData { float }, VALUE_MASK | ValueType::Float as u8)
     }
 }
 
-impl<'a> From<char> for Value<'a> {
+impl<'a> From<char> for Value {
     fn from(ch: char) -> Self {
         Self::new(ValueData { ch }, VALUE_MASK | ValueType::Char as u8)
     }
 }
 
-impl<'a> From<bool> for Value<'a> {
+impl<'a> From<bool> for Value {
     fn from(boolean: bool) -> Self {
         Self::new(ValueData { boolean }, VALUE_MASK | ValueType::Bool as u8)
     }
 }
 
-impl<'a> From<u8> for Value<'a> {
+impl<'a> From<u8> for Value {
     fn from(byte: u8) -> Self {
         Self::new(ValueData { byte }, VALUE_MASK | ValueType::Byte as u8)
     }

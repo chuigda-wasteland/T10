@@ -13,7 +13,7 @@ use crate::void::Void;
 pub trait RustCallable<'a> {
     fn param_specs(&self) -> Vec<(TypeCheckInfo, FFIAction, Nullable)>;
     fn return_value_spec(&self) -> (TypeCheckInfo, FFIAction, ExceptionSpec);
-    unsafe fn call_prechecked(&self, args: &'a [Value<'a>]) -> Result<Value<'a>, TError>;
+    unsafe fn call_prechecked(&self, args: &'a [Value]) -> Result<Value, TError>;
 }
 
 pub struct RustFunction<'a, F, A, B, RET>
@@ -54,7 +54,7 @@ impl<'a, F, A, B, RET> RustCallable<'a> for RustFunction<'a, F, A, B, RET>
          <Void as FusionRV<RET>>::exception())
     }
 
-    unsafe fn call_prechecked(&self, args: &'a [Value<'a>]) -> Result<Value<'a>, TError> {
+    unsafe fn call_prechecked(&self, args: &'a [Value]) -> Result<Value, TError> {
         debug_assert_eq!(args.len(), 2);
         let arg1 = args.get_unchecked(0);
         let arg2 = args.get_unchecked(1);

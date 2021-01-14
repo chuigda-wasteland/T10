@@ -336,6 +336,19 @@ mod test {
         type TestedType2<'a> = &'a mut Option<i64>;
         type TestedType3<'a> = &'a Option<String>;
         type TestedType4<'a> = &'a mut Option<String>;
+
+        test_type_infos_rv::<TestedType1>(
+            &[TypeId::of::<i64>()], FFIAction::Share, true, None as ExceptionSpec
+        );
+        test_type_infos_rv::<TestedType2>(
+            &[TypeId::of::<i64>()], FFIAction::MutShare, true, None as ExceptionSpec
+        );
+        test_type_infos_rv::<TestedType3>(
+            &[TypeId::of::<String>()], FFIAction::Share, true, None as ExceptionSpec
+        );
+        test_type_infos_rv::<TestedType4>(
+            &[TypeId::of::<String>()], FFIAction::MutShare, true, None as ExceptionSpec
+        );
     }
 
     #[derive(Debug)] struct TestError1();
