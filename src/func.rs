@@ -36,7 +36,8 @@ impl<'a, F, A, B, RET> RustCallable<'a> for RustFunction<'a, F, A, B, RET>
           RET: 'a,
           Void: FromValue<'a, A> + Fusion<A>,
           Void: FromValue<'a, B> + Fusion<B>,
-          Void: IntoValue<'a, RET> + FusionRV<RET> {
+          Void: IntoValue<'a, RET> + FusionRV<RET>
+{
     fn param_specs(&self) -> Vec<(TypeCheckInfo, FFIAction, Nullable)> {
         vec![
             (<Void as Fusion<A>>::fusion_tyck_info(),

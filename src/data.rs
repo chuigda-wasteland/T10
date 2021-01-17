@@ -3,6 +3,7 @@
 //! T10 内存模型的文档可以看[这里](https://github.com/Pr47/T10/issues/8#issuecomment-739257424)
 
 use std::any::{TypeId, Any, type_name};
+use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::mem::{MaybeUninit, ManuallyDrop, transmute};
 use std::ptr::{NonNull, null_mut};
@@ -33,9 +34,11 @@ pub enum GcInfo {
     OnStack = 6,
 }
 
-impl GcInfo {
-    pub fn from_u8(src: u8) -> GcInfo {
-        match src {
+impl TryFrom<u8> for GcInfo {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Ok(match value {
             0 => GcInfo::Owned,
             1 => GcInfo::SharedWithHost,
             2 => GcInfo::MutSharedWithHost,
@@ -43,8 +46,8 @@ impl GcInfo {
             4 => GcInfo::Dropped,
             5 => GcInfo::Null,
             6 => GcInfo::OnStack,
-            _ => unreachable!()
-        }
+            _ => return Err(())
+        })
     }
 }
 
@@ -103,7 +106,7 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
     }
 
     #[inline] fn gc_info_impl(&self) -> GcInfo {
-        GcInfo::from_u8(self.gc_info)
+        GcInfo::try_from(self.gc_info).unwrap()
     }
 
     #[inline] fn set_gc_info_impl(&mut self, gc_info: GcInfo) {
@@ -181,7 +184,7 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 
     unsafe fn get_ptr(&self) -> NonNull<()> {
-        match GcInfo::from_u8(self.gc_info) {
+        match GcInfo::try_from(self.gc_info).unwrap() {
             GcInfo::Owned => self.borrow_value(),
             GcInfo::SharedWithHost | GcInfo::MutSharedWithHost => self.borrow_ptr(),
             GcInfo::MovedToHost => unreachable!("cannot use moved value"),
@@ -271,8 +274,10 @@ impl Value {
 
     /// 创建一个空指针
     #[inline] pub fn null_ptr() -> Self {
-        Self::new(ValueData { ptr: null_mut::<StaticWrapper<Void>>() as *mut dyn DynBase },
-                  NULL_MASK)
+        Self::new(
+            ValueData { ptr: null_mut::<StaticWrapper<Void>>() as *mut dyn DynBase },
+            NULL_MASK
+        )
     }
 
     /// 创建一个空值
