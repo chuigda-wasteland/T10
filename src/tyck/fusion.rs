@@ -21,6 +21,7 @@ pub type Nullable = bool;
 pub trait FusionRV<T> {
     fn tyck_info_rv() -> TypeCheckInfo;
     fn tyck_rv(tyck_info: &TypeCheckInfo) -> bool;
+    fn tyck_type_rv<U>() -> bool;
     fn ffi_action_rv() -> FFIAction;
 
     fn nullable_rv() -> Nullable;
@@ -38,6 +39,7 @@ pub trait FusionRV2<T> {
 pub trait Fusion<T> {
     fn fusion_tyck_info() -> TypeCheckInfo;
     fn fusion_tyck(tyck_info: &TypeCheckInfo) -> bool;
+    fn fusion_tyck_type<U>() -> bool;
     fn fusion_ffi_action() -> FFIAction;
 
     fn nullable() -> Nullable;
@@ -56,6 +58,10 @@ impl<T> FusionRV<T> for Void where Void: FusionRV2<T> {
 
     #[inline] default fn tyck_rv(tyck_info: &TypeCheckInfo) -> bool {
         <Void as FusionRV2<T>>::tyck_rv2(tyck_info)
+    }
+
+    #[inline] default fn tyck_type_rv<U>() -> bool {
+        unimplemented!()
     }
 
     #[inline] default fn ffi_action_rv() -> FFIAction {
@@ -78,6 +84,10 @@ impl<T, E> FusionRV<Result<T, E>> for Void where Void: FusionRV2<T>, E: 'static 
 
     #[inline] fn tyck_rv(tyck_info: &TypeCheckInfo) -> bool {
         <Void as FusionRV2<T>>::tyck_rv2(tyck_info)
+    }
+
+    #[inline] fn tyck_type_rv<U>() -> bool {
+        unimplemented!()
     }
 
     #[inline] fn ffi_action_rv() -> FFIAction {
@@ -156,6 +166,10 @@ impl<T> Fusion<T> for Void where Void: Fusion2<T> {
         <Void as Fusion2<T>>::fusion_tyck2(tyck_info)
     }
 
+    #[inline] default fn fusion_tyck_type<U>() -> bool {
+        unimplemented!()
+    }
+
     #[inline] default fn fusion_ffi_action() -> FFIAction {
         <Void as Fusion2<T>>::fusion_ffi_action2()
     }
@@ -174,6 +188,10 @@ impl<T> Fusion<Option<T>> for Void where Void: Fusion2<T> {
         <Void as Fusion2<T>>::fusion_tyck2(tyck_info)
     }
 
+    #[inline] fn fusion_tyck_type<U>() -> bool {
+        unimplemented!()
+    }
+
     #[inline] fn fusion_ffi_action() -> FFIAction {
         <Void as Fusion2<T>>::fusion_ffi_action2()
     }
@@ -189,6 +207,10 @@ impl Fusion<Value> for Void {
     }
 
     #[inline] fn fusion_tyck(_tyck_info: &TypeCheckInfo) -> bool {
+        true
+    }
+
+    #[inline] fn fusion_tyck_type<U>() -> bool {
         true
     }
 

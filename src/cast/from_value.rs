@@ -73,15 +73,15 @@ impl<'a> Drop for GcInfoGuard<'a> {
 /// 在这一层 specialization 中特殊处理 `Option<T>` 和 `Value` 类型
 ///
 /// ```compile_fail(E0597)
-/// use t10::data::{Value, ValueType};
-/// use t10::cast::from_value::FromValue;
-/// use t10::void::Void;
-/// fn main() {
-///     let v = Value::null_value(ValueType::Int);
-///     unsafe {
-///         let x = <Void as FromValue<Option<&'static i64>>>::from_value(&v);
-///     }
+/// # use t10::data::{Value, ValueType};
+/// # use t10::cast::from_value::FromValue;
+/// # use t10::void::Void;
+/// # fn main() {
+/// let v = Value::null_value(ValueType::Int);
+/// unsafe {
+///     let x = <Void as FromValue<Option<&'static i64>>>::from_value(&v);
 /// }
+/// # }
 /// ```
 pub trait FromValue<'a, T> {
     fn lifetime_check(value: &'a Value) -> Result<GcInfoGuard<'a>, TError>;
@@ -246,10 +246,10 @@ impl<'a> FromValueL2<'a, i64> for Void {
     #[cfg(debug_assertions)]
     #[inline] unsafe fn from_value_l2(value: &'a Value) -> i64 {
         if value.is_value() {
-            value.data.int
+            value.value_typed_data.inner.int
         } else {
             let mut ret: MaybeUninit<i64> = MaybeUninit::uninit();
-            value.data.ptr.as_mut().unwrap().move_out_ck(
+            value.ptr.as_mut().unwrap().move_out_ck(
                 &mut ret as *mut MaybeUninit<_> as *mut (),
                 TypeId::of::<MaybeUninit<i64>>()
             );
@@ -273,7 +273,7 @@ impl<'a, T> FromValueL3<'a, T> for Void where Void: StaticBase<T> {
     }
 
     #[inline] default unsafe fn from_value_l3(value: &'a Value, out: &mut MaybeUninit<T>) {
-        value.data.ptr.as_mut().unwrap().move_out_ck(
+        value.ptr.as_mut().unwrap().move_out_ck(
             out as *mut MaybeUninit<_> as *mut (),
             <Void as StaticBase<T>>::base_type_id()
         );

@@ -1,15 +1,18 @@
 //! `data` 模块实现了 T10 中数据的实际存储形式。
 //!
 //! T10 内存模型的文档可以看[这里](https://github.com/Pr47/T10/issues/8#issuecomment-739257424)
+//!
+//! > TODO 需要更新文档部分
 
-use std::any::{TypeId, Any, type_name};
+use std::any::{TypeId, type_name};
 use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::mem::{MaybeUninit, ManuallyDrop, transmute};
-use std::ptr::{NonNull, null_mut};
+use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ptr::NonNull;
 
 use crate::tyck::base::StaticBase;
 use crate::tyck::TypeCheckInfo;
+use crate::util::FatPointer;
 use crate::void::Void;
 
 /// 堆上对象的状态
@@ -56,6 +59,7 @@ union WrapperData<T> {
     ptr: NonNull<T>
 }
 
+#[repr(align(8))]
 pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
     data: WrapperData<Ta>,
     gc_info: u8,
@@ -212,12 +216,12 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
 /// “值类型对象”的类型标记
 #[derive(Copy, Clone)]
 pub enum ValueType {
-    Int = 1,
-    Float = 2,
-    Char = 3,
-    Byte = 4,
-    Bool = 5,
-    AnyType = 6
+    Int     = 0b00000100,
+    Float   = 0b00001000,
+    Char    = 0b00001100,
+    Byte    = 0b00010000,
+    Bool    = 0b00010100,
+    AnyType = 0b00011000
 }
 
 impl From<u8> for ValueType {
@@ -234,12 +238,13 @@ impl From<u8> for ValueType {
     }
 }
 
-/// 一个通用的“值”中所存储的数据
+pub(crate) const VALUE_MASK      : u8 = 0b00000001;
+pub(crate) const NULL_MASK       : u8 = 0b00000010;
+pub(crate) const VALUE_TYPE_MASK : u8 = 0b01111100;
+
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union ValueData {
-    /// 堆对象指针
-    pub(crate) ptr: *mut dyn DynBase,
+pub union ValueTypedDataInner {
     /// 整数
     pub(crate) int: i64,
     /// 浮点数
@@ -252,138 +257,112 @@ pub union ValueData {
     pub(crate) boolean: bool
 }
 
-/// 一个通用的“值”，附带必要的运行时类型检查信息
 #[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Value {
-    pub(crate) data: ValueData,
-    tag: u8
+pub struct ValueTypedData {
+    pub(crate) tag: usize,
+    pub(crate) inner: ValueTypedDataInner
 }
 
-const VALUE_MASK      : u8 = 0b10000000;
-const NULL_MASK       : u8 = 0b01000000;
-const VALUE_TYPE_MASK : u8 = 0b00000111;
+/// 一个通用的“值”
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub union Value {
+    /// 堆对象指针
+    pub(crate) ptr: *mut dyn DynBase,
+    /// 堆对象指针的低层表示
+    pub(crate) ptr_inner: FatPointer,
+    /// 值类型数据
+    pub(crate) value_typed_data: ValueTypedData
+}
 
 impl Value {
-    #[inline] pub(crate) fn new(data: ValueData, tag: u8) -> Self {
-        Self {
-            data,
-            tag
-        }
-    }
-
     /// 创建一个空指针
     #[inline] pub fn null_ptr() -> Self {
-        Self::new(
-            ValueData { ptr: null_mut::<StaticWrapper<Void>>() as *mut dyn DynBase },
-            NULL_MASK
-        )
+        Self {
+            ptr_inner: FatPointer::null()
+        }
     }
 
     /// 创建一个空值
     ///
-    /// 由于 Pr47 采用值类型+引用类型的方式，空值和空指针并不是等同的概念。请见
+    /// 由于 Pr47 采用值类型+引用类型的，空值和空指针并不是等同的概念。请见
     /// <https://github.com/Pr47/doc47/issues/9>
+    ///
+    /// > TODO 需要更新文档部分
     #[inline] pub fn null_value(value_type: ValueType) -> Self {
-        Self::new(ValueData { int: 0 }, VALUE_MASK | NULL_MASK | (value_type as u8))
+        Self {
+            ptr_inner: FatPointer::from_parts(
+                (value_type as u8 | VALUE_MASK | NULL_MASK) as usize,
+                0
+            )
+        }
     }
 
     #[inline] pub fn is_null(&self) -> bool {
-        (self.tag & NULL_MASK) != 0
+        unimplemented!()
     }
 
     #[inline] pub fn is_value(&self) -> bool {
-        (self.tag & VALUE_MASK) != 0
+        unimplemented!()
     }
 
     #[inline] pub fn is_ptr(&self) -> bool {
-        (self.tag & VALUE_MASK) == 0
+        unimplemented!()
     }
 
     #[inline] pub fn type_id(&self) -> TypeId {
-        if self.is_value() {
-            match ValueType::from(self.tag & VALUE_TYPE_MASK) {
-                ValueType::Int     => TypeId::of::<i64>(),
-                ValueType::Float   => TypeId::of::<f64>(),
-                ValueType::Char    => TypeId::of::<char>(),
-                ValueType::Byte    => TypeId::of::<u8>(),
-                ValueType::Bool    => TypeId::of::<bool>(),
-                ValueType::AnyType => TypeId::of::<dyn Any>()
-            }
-        } else if self.is_null() {
-            unreachable!("should not use type_id on null value")
-        } else {
-            unsafe {
-                self.data.ptr.as_ref().unwrap().dyn_type_id()
-            }
-        }
+        unimplemented!()
     }
 
     pub fn gc_info(&self) -> GcInfo {
-        if self.is_value() {
-            GcInfo::OnStack
-        } else if self.is_null() {
-            GcInfo::Null
-        } else {
-            unsafe {
-                self.data.ptr.as_ref().unwrap().gc_info()
-            }
-        }
+        unimplemented!()
     }
 
-    #[inline] pub unsafe fn set_gc_info(&self, gc_info: GcInfo) {
-        debug_assert!(!self.is_value());
-        debug_assert!(!self.is_null());
-        self.data.ptr.as_mut().unwrap().set_gc_info(gc_info);
+    #[inline] pub unsafe fn set_gc_info(&self, _gc_info: GcInfo) {
+        unimplemented!()
     }
 
     #[inline] pub unsafe fn as_ref<T>(&self) -> &T {
-        debug_assert!(!self.is_value());
-        debug_assert!(!self.is_null());
-        let non_null = self.data.ptr.as_ref().unwrap().get_ptr().cast::<T>();
-        transmute::<&T, &T>(non_null.as_ref())
+        unimplemented!()
     }
 
     #[inline] pub unsafe fn as_mut<T>(&self) -> &mut T {
-        debug_assert!(!self.is_null());
-        debug_assert!(!self.is_value());
-        let mut non_null = self.data.ptr.as_ref().unwrap().get_ptr().cast::<T>();
-        transmute::<&mut T, &mut T>(non_null.as_mut())
+        unimplemented!()
     }
 }
 
 impl<'a> From<*mut dyn DynBase> for Value {
     fn from(ptr: *mut dyn DynBase) -> Self {
-        Self::new(ValueData { ptr }, 0)
+        Self { ptr }
     }
 }
 
 impl<'a> From<i64> for Value {
-    fn from(int: i64) -> Self {
-        Self::new(ValueData { int }, VALUE_MASK | ValueType::Int as u8)
+    fn from(_int: i64) -> Self {
+        unimplemented!()
     }
 }
 
 impl<'a> From<f64> for Value {
-    fn from(float: f64) -> Self {
-        Self::new(ValueData { float }, VALUE_MASK | ValueType::Float as u8)
+    fn from(_float: f64) -> Self {
+        unimplemented!()
     }
 }
 
 impl<'a> From<char> for Value {
-    fn from(ch: char) -> Self {
-        Self::new(ValueData { ch }, VALUE_MASK | ValueType::Char as u8)
+    fn from(_ch: char) -> Self {
+        unimplemented!()
     }
 }
 
 impl<'a> From<bool> for Value {
-    fn from(boolean: bool) -> Self {
-        Self::new(ValueData { boolean }, VALUE_MASK | ValueType::Bool as u8)
+    fn from(_boolean: bool) -> Self {
+        unimplemented!()
     }
 }
 
 impl<'a> From<u8> for Value {
-    fn from(byte: u8) -> Self {
-        Self::new(ValueData { byte }, VALUE_MASK | ValueType::Byte as u8)
+    fn from(_byte: u8) -> Self {
+        unimplemented!()
     }
 }
