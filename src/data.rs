@@ -132,7 +132,8 @@ pub type StaticWrapper<T> = Wrapper<'static, T, T>;
 
 /// 负责在运行时从 `Wrapper` 中提取信息
 ///
-/// 从方法签名上来看，`DynBase` 的所有方法都带有 `self` 参数，而 `StaticBased``StaticBase` 偏向于“编译”期的检查工作，而 `DynBase` 更偏向于运行时的动态分发。
+/// 从方法签名上来看，`DynBase` 的所有方法都带有 `self` 参数，而 `StaticBased` 没有。
+/// `StaticBase` 偏向于“编译”期的检查工作，而 `DynBase` 更偏向于运行时的动态分发。
 pub trait DynBase {
     /// 获取类型 ID
     fn dyn_type_id(&self) -> std::any::TypeId;

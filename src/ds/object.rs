@@ -10,6 +10,12 @@ pub struct DynamicObject {
     fields: BTreeMap<String, Value>
 }
 
+impl Default for DynamicObject {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DynamicObject {
     pub fn new() -> Self {
         Self {
@@ -18,7 +24,7 @@ impl DynamicObject {
     }
 
     pub fn get_field_untyped(&self, name: &str) -> Option<Value> {
-        self.fields.get(name).map(|x| x.clone())
+        self.fields.get(name).copied()
     }
 
     pub fn get_field<T>(&self, _name: &str) -> Result<T, TError>
