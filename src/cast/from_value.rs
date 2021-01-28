@@ -233,10 +233,10 @@ impl<'a> FromValueL2<'a, i64> for Void {
     #[cfg(not(debug_assertions))]
     #[inline] unsafe fn from_value_l2(value: &'a Value) -> i64 {
         if value.is_value() {
-            value.data.int
+            value.value_typed_data.inner.int
         } else {
             let mut ret: MaybeUninit<i64> = MaybeUninit::uninit();
-            value.data.ptr.as_mut().unwrap().move_out(
+            value.ptr.as_mut().unwrap().move_out(
                 &mut ret as *mut MaybeUninit<_> as *mut ()
             );
             ret.assume_init()
@@ -272,6 +272,14 @@ impl<'a, T> FromValueL3<'a, T> for Void where Void: StaticBase<T> {
         }
     }
 
+    #[cfg(not(debug_assertions))]
+    #[inline] default unsafe fn from_value_l3(value: &'a Value, out: &mut MaybeUninit<T>) {
+        value.ptr.as_mut().unwrap().move_out(
+            out as *mut MaybeUninit<_> as *mut ()
+        );
+    }
+
+    #[cfg(debug_assertions)]
     #[inline] default unsafe fn from_value_l3(value: &'a Value, out: &mut MaybeUninit<T>) {
         value.ptr.as_mut().unwrap().move_out_ck(
             out as *mut MaybeUninit<_> as *mut (),
