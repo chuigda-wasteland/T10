@@ -10,8 +10,8 @@ use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
 
-use crate::tyck::base::StaticBase;
 use crate::tyck::TypeCheckInfo;
+use crate::tyck::base::StaticBase;
 use crate::util::FatPointer;
 use crate::void::Void;
 

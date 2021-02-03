@@ -72,3 +72,38 @@ impl<'a, F, A, B, RET> RustCallable<'a> for RustFunction<'a, F, A, B, RET>
         <Void as IntoValue<RET>>::into_value(ret)
     }
 }
+
+#[cfg(test)]
+mod test {
+    extern crate test;
+
+    use std::marker::PhantomData;
+    use test::Bencher;
+
+    use crate::data::{StaticWrapper, DynBase};
+    use crate::func::{Value, RustFunction, RustCallable};
+
+    struct S(i32);
+
+    fn bar(x: &mut S, y: &S) -> i64 {
+        x.0 = y.0;
+        x.0 as i64
+    }
+
+    #[bench]
+    fn bench_simple_call(b: &mut Bencher) {
+        let s1 = Box::leak(Box::new(StaticWrapper::owned(S(0)))) as *mut dyn DynBase;
+        let s2 = Box::leak(Box::new(StaticWrapper::owned(S(4)))) as *mut dyn DynBase;
+
+        let v1 = Value::from(s1);
+        let v2 = Value::from(s2);
+
+        let f = RustFunction { f: bar, _phantom: PhantomData::default() };
+        b.iter(|| {
+            unsafe {
+                let _ = f.call_prechecked(&[v1, v2]);
+            }
+        })
+    }
+}
+
