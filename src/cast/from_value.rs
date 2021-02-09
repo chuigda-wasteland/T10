@@ -14,10 +14,9 @@ use std::mem::MaybeUninit;
 
 use crate::data::{Value, GcInfo, GCINFO_READ_MASK, GCINFO_WRITE_MASK};
 use crate::error::{TError, NullError, LifetimeError};
-use crate::void::Void;
-use crate::tyck::base::StaticBase;
 use crate::tyck::FFIAction;
-use crate::data::GcInfo::{MutSharedToHost, SharedToHost};
+use crate::tyck::base::StaticBase;
+use crate::void::Void;
 
 /// `GcInfoGuard` 是一个用于实现 `GcInfo` 更新的 RAII 装置
 ///
@@ -34,7 +33,7 @@ pub struct GcInfoGuard<'a> {
 }
 
 impl<'a> GcInfoGuard<'a> {
-    pub fn new(value: &'a Value, on_finish: GcInfo, on_yank: GcInfo) -> Self {
+    #[inline] pub fn new(value: &'a Value, on_finish: GcInfo, on_yank: GcInfo) -> Self {
         Self {
             value,
             on_finish: Some(on_finish),
@@ -42,7 +41,7 @@ impl<'a> GcInfoGuard<'a> {
         }
     }
 
-    pub fn no_action(value: &'a Value) -> Self {
+    #[inline] pub fn no_action(value: &'a Value) -> Self {
         Self {
             value,
             on_finish: None,
@@ -50,7 +49,7 @@ impl<'a> GcInfoGuard<'a> {
         }
     }
 
-    pub fn finish(&mut self) {
+    #[inline] pub fn finish(&mut self) {
         if let Some(on_finish) = self.on_finish {
             unsafe {
                 self.value.set_gc_info(on_finish);
@@ -107,7 +106,7 @@ pub trait FromValueL3<'a, T> {
 }
 
 impl<'a, T> FromValue<'a, T> for Void where Void: FromValueL1<'a, T> {
-    #[inline] default fn lifetime_check(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
+    default fn lifetime_check(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         if value.is_null() {
             Err(NullError().into())
         } else {
@@ -115,13 +114,13 @@ impl<'a, T> FromValue<'a, T> for Void where Void: FromValueL1<'a, T> {
         }
     }
 
-    #[inline] default unsafe fn from_value(value: &'a Value) -> T {
+    default unsafe fn from_value(value: &'a Value) -> T {
         <Void as FromValueL1<'a, T>>::from_value_l1(value)
     }
 }
 
 impl<'a, T> FromValue<'a, Option<T>> for Void where Void: FromValueL1<'a, T> {
-    #[inline] fn lifetime_check(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
+    fn lifetime_check(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         if value.is_null() {
             Ok(GcInfoGuard::no_action(value))
         } else {
@@ -129,7 +128,7 @@ impl<'a, T> FromValue<'a, Option<T>> for Void where Void: FromValueL1<'a, T> {
         }
     }
 
-    #[inline] unsafe fn from_value(value: &'a Value) -> Option<T> {
+    unsafe fn from_value(value: &'a Value) -> Option<T> {
         Some(<Void as FromValueL1<'a, T>>::from_value_l1(value))
     }
 }
@@ -170,7 +169,7 @@ impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
         let actual = value.gc_info();
         match actual {
             GcInfo::Owned => {
-                value.set_gc_info(SharedToHost);
+                value.set_gc_info(GcInfo::SharedToHost);
                 Ok(GcInfoGuard::new(value, GcInfo::Owned, GcInfo::Owned))
             },
             GcInfo::SharedToHost | GcInfo::SharedFromHost => {
@@ -195,8 +194,8 @@ impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
     unsafe fn lifetime_check_l1(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         debug_assert!(!value.is_null());
         let actual = value.gc_info();
-        if actual as u8 & GCINFO_WRITE_MASK {
-            value.set_gc_info(MutSharedToHost);
+        if actual as u8 & GCINFO_WRITE_MASK != 0 {
+            value.set_gc_info(GcInfo::MutSharedToHost);
             Ok(GcInfoGuard::new(value, actual, actual))
         } else {
             Err(LifetimeError::new(&INTO_MUT_REF_LIFETIMES, FFIAction::MutShare, actual).into())
@@ -232,7 +231,7 @@ const VALUE_TYPE_LIFETIMES: [GcInfo; 4] = [
 impl<'a> FromValueL2<'a, i64> for Void {
     #[inline] unsafe fn lifetime_check_l2(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         let actual = value.gc_info();
-        if actual as u8 & GCINFO_READ_MASK {
+        if actual as u8 & GCINFO_READ_MASK != 0 {
             Ok(GcInfoGuard::no_action(value))
         } else {
             Err(LifetimeError::new(&VALUE_TYPE_LIFETIMES, FFIAction::Copy, actual).into())
@@ -300,7 +299,7 @@ impl<'a, T> FromValueL3<'a, T> for Void where Void: StaticBase<T> {
 impl<'a, T> FromValueL3<'a, T> for Void where Void: StaticBase<T>, T: Copy {
     unsafe fn lifetime_check_l3(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         let actual = value.gc_info();
-        if VALUE_TYPE_LIFETIMES.contains(&actual) {
+        if actual as u8 & GCINFO_READ_MASK != 0 {
             Ok(GcInfoGuard::no_action(value))
         } else {
             Err(LifetimeError::new(&VALUE_TYPE_LIFETIMES, FFIAction::Copy, actual).into())
@@ -310,8 +309,4 @@ impl<'a, T> FromValueL3<'a, T> for Void where Void: StaticBase<T>, T: Copy {
     unsafe fn from_value_l3(value: &'a Value, out: &mut MaybeUninit<T>) {
         out.write(value.as_ref::<T>().clone());
     }
-}
-
-#[cfg(test)]
-mod test {
 }

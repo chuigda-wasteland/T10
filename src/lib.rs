@@ -2,6 +2,7 @@
 #![feature(maybe_uninit_extra)]
 #![feature(specialization)]
 #![feature(test)]
+#![feature(core_intrinsics)]
 
 pub mod cast;
 pub mod data;

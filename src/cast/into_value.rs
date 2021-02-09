@@ -40,7 +40,7 @@ pub trait IntoValueL3<'a, T> {
 }
 
 impl<'a, T> IntoValue<'a, T> for Void where Void: IntoValueNoexcept<'a, T> {
-    #[inline] default fn into_value(t: T) -> Result<Value, TError> {
+    default fn into_value(t: T) -> Result<Value, TError> {
         <Void as IntoValueNoexcept<'a, T>>::into_value_noexcept(t)
     }
 }
@@ -49,7 +49,7 @@ impl<'a, T, E> IntoValue<'a, Result<T, E>> for Void
     where Void: IntoValueNoexcept<'a, T>,
           E: 'static + Error
 {
-    #[inline] fn into_value(t: Result<T, E>) -> Result<Value, TError> {
+    fn into_value(t: Result<T, E>) -> Result<Value, TError> {
         match t {
             Ok(data) => <Void as IntoValueNoexcept<'a, T>>::into_value_noexcept(data),
             Err(e) => Err(TError::user_exception(e))

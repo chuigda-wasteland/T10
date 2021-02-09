@@ -13,6 +13,7 @@ use crate::tyck::TypeCheckInfo;
 use crate::tyck::base::StaticBase;
 use crate::util::FatPointer;
 use crate::void::Void;
+use crate::cast::from_value::GcInfoGuard;
 
 /// 堆上对象的状态
 ///
@@ -39,16 +40,9 @@ pub enum GcInfo {
 }
 
 impl From<u8> for GcInfo {
-    fn from(src: u8) -> Self {
-        match src {
-            0b1011 => GcInfo::Owned,
-            0b0010 => GcInfo::SharedFromHost,
-            0b0011 => GcInfo::MutSharedFromHost,
-            0b1010 => GcInfo::SharedToHost,
-            0b1000 => GcInfo::MutSharedToHost,
-            0b1100 => GcInfo::Dropped,
-            0b0111 => GcInfo::TempObject,
-            _ => unreachable!()
+    #[inline] fn from(src: u8) -> Self {
+        unsafe {
+            transmute::<u8, GcInfo>(src)
         }
     }
 }
@@ -249,7 +243,7 @@ pub(crate) const VALUE_TYPE_MASK : u8 = 0b01111100;
 #[repr(C)]
 pub union ValueTypedDataInner {
     /// 整数
-    pub(crate) int: i64,
+    pub int: i64,
     /// 浮点数
     pub(crate) float: f64,
     /// 字符
@@ -263,7 +257,7 @@ pub union ValueTypedDataInner {
 #[derive(Copy, Clone)]
 pub struct ValueTypedData {
     pub(crate) tag: usize,
-    pub(crate) inner: ValueTypedDataInner
+    pub inner: ValueTypedDataInner
 }
 
 /// 一个通用的“值”
@@ -275,7 +269,7 @@ pub union Value {
     /// 堆对象指针的低层表示
     pub(crate) ptr_inner: FatPointer,
     /// 值类型数据
-    pub(crate) value_typed_data: ValueTypedData
+    pub value_typed_data: ValueTypedData
 }
 
 impl Value {
@@ -336,7 +330,7 @@ impl Value {
         }
     }
 
-    pub fn gc_info(&self) -> GcInfo {
+    #[inline] pub fn gc_info(&self) -> GcInfo {
         if self.is_value() {
             GcInfo::TempObject
         } else {
@@ -350,7 +344,7 @@ impl Value {
         if self.is_ptr() {
             self.ptr.as_mut().unwrap().set_gc_info(gc_info);
         } else {
-            unreachable!()
+            // do nothing, does not matter
         }
     }
 
@@ -380,8 +374,15 @@ impl<'a> From<*mut dyn DynBase> for Value {
 }
 
 impl<'a> From<i64> for Value {
-    fn from(_int: i64) -> Self {
-        unimplemented!()
+    fn from(int: i64) -> Self {
+        Self {
+            value_typed_data: ValueTypedData {
+                tag: (ValueType::Int as usize) | (VALUE_MASK as usize),
+                inner: ValueTypedDataInner {
+                    int
+                }
+            }
+        }
     }
 }
 
