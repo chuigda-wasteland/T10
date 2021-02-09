@@ -1,5 +1,4 @@
 #![allow(incomplete_features)]
-#![allow(soft_unstable)]
 #![feature(maybe_uninit_extra)]
 #![feature(specialization)]
 #![feature(test)]

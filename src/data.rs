@@ -5,9 +5,8 @@
 //! > TODO 需要更新文档部分
 
 use std::any::{TypeId, type_name};
-use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::mem::{ManuallyDrop, MaybeUninit};
+use std::mem::{ManuallyDrop, MaybeUninit, transmute};
 use std::ptr::NonNull;
 
 use crate::tyck::TypeCheckInfo;
@@ -22,37 +21,42 @@ use crate::void::Void;
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum GcInfo {
     /// T10 虚拟机拥有这个对象
-    Owned = 0,
-    /// 这个对象正在 Rust 和 T10 之间共享
-    SharedWithHost = 1,
-    /// 这个对象正在 Rust 和 T10 之间可变共享
-    MutSharedWithHost = 2,
+    Owned              = 0b1011,
+    /// 从 Rust 一侧共享过来的对象
+    SharedFromHost     = 0b0010,
+    /// 从 Rust 一侧可变共享过来的对象
+    MutSharedFromHost  = 0b0011,
+    /// 这个对象正从 T10 共享到 Rust
+    SharedToHost       = 0b1010,
+    /// 这个对象正在 T10 可变共享到 Rust
+    MutSharedToHost    = 0b1000,
     /// 这个对象已经被移动到 Rust 一侧
-    MovedToHost = 3,
-    /// 这个对象已被回收
-    Dropped = 4,
-    /// 这是一个空对象
-    Null = 5,
-    /// 这是一个栈上对象
-    OnStack = 6,
+    MovedToHost        = 0b0100,
+    /// 这个对象正要被回收
+    Dropped            = 0b1100,
+    /// 这不是堆上对象
+    TempObject         = 0b0111
 }
 
-impl TryFrom<u8> for GcInfo {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Ok(match value {
-            0 => GcInfo::Owned,
-            1 => GcInfo::SharedWithHost,
-            2 => GcInfo::MutSharedWithHost,
-            3 => GcInfo::MovedToHost,
-            4 => GcInfo::Dropped,
-            5 => GcInfo::Null,
-            6 => GcInfo::OnStack,
-            _ => return Err(())
-        })
+impl From<u8> for GcInfo {
+    fn from(src: u8) -> Self {
+        match src {
+            0b1011 => GcInfo::Owned,
+            0b0010 => GcInfo::SharedFromHost,
+            0b0011 => GcInfo::MutSharedFromHost,
+            0b1010 => GcInfo::SharedToHost,
+            0b1000 => GcInfo::MutSharedToHost,
+            0b1100 => GcInfo::Dropped,
+            0b0111 => GcInfo::TempObject,
+            _ => unreachable!()
+        }
     }
 }
+
+pub const GCINFO_OWNED_MASK: u8 = 0b1000;
+pub const GCINFO_DROP_MASK:  u8 = 0b0100;
+pub const GCINFO_READ_MASK:  u8 = 0b0010;
+pub const GCINFO_WRITE_MASK: u8 = 0b0001;
 
 union WrapperData<T> {
     value: ManuallyDrop<MaybeUninit<T>>,
@@ -82,7 +86,7 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
             data: WrapperData {
                 ptr: unsafe { NonNull::new_unchecked(data as *const Ta as *mut Ta) }
             },
-            gc_info: GcInfo::SharedWithHost as u8,
+            gc_info: GcInfo::SharedFromHost as u8,
             _phantom: PhantomData::default()
         }
     }
@@ -92,7 +96,7 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
             data: WrapperData {
                 ptr: unsafe { NonNull::new_unchecked(data as *mut Ta) }
             },
-            gc_info: GcInfo::MutSharedWithHost as u8,
+            gc_info: GcInfo::MutSharedFromHost as u8,
             _phantom: PhantomData::default()
         }
     }
@@ -110,7 +114,7 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
     }
 
     #[inline] fn gc_info_impl(&self) -> GcInfo {
-        GcInfo::try_from(self.gc_info).unwrap()
+        GcInfo::from(self.gc_info)
     }
 
     #[inline] fn set_gc_info_impl(&mut self, gc_info: GcInfo) {
@@ -189,13 +193,11 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
     }
 
     unsafe fn get_ptr(&self) -> NonNull<()> {
-        match GcInfo::try_from(self.gc_info).unwrap() {
-            GcInfo::Owned => self.borrow_value(),
-            GcInfo::SharedWithHost | GcInfo::MutSharedWithHost => self.borrow_ptr(),
-            GcInfo::MovedToHost => unreachable!("cannot use moved value"),
-            GcInfo::Dropped => unreachable!("cannot use dropped value"),
-            GcInfo::Null => unreachable!("null pointer should not occur at this layer"),
-            GcInfo::OnStack => unreachable!("stack value should not occur at this layer")
+        if self.gc_info & GCINFO_OWNED_MASK != 0{
+            self.borrow_value()
+        } else {
+            debug_assert_ne!(self.gc_info & GCINFO_DROP_MASK, 0);
+            self.borrow_ptr()
         }
     }
 
@@ -300,35 +302,74 @@ impl Value {
     }
 
     #[inline] pub fn is_null(&self) -> bool {
-        unimplemented!()
+        unsafe {
+            (self.ptr_inner.part1 == 0) || (self.ptr_inner.part1 as u8 & NULL_MASK != 0)
+        }
     }
 
     #[inline] pub fn is_value(&self) -> bool {
-        unimplemented!()
+        unsafe {
+            self.ptr_inner.part1 as u8 & VALUE_MASK != 0
+        }
     }
 
     #[inline] pub fn is_ptr(&self) -> bool {
-        unimplemented!()
+        unsafe {
+            self.ptr_inner.part1 as u8 & VALUE_MASK == 0
+        }
     }
 
     #[inline] pub fn type_id(&self) -> TypeId {
-        unimplemented!()
+        unsafe {
+            if self.ptr_inner.part1 as u8 & VALUE_MASK != 0 {
+                match ValueType::from(self.ptr_inner.part1 as u8 & VALUE_TYPE_MASK) {
+                    ValueType::Int => TypeId::of::<i64>(),
+                    ValueType::Float => TypeId::of::<f64>(),
+                    ValueType::Char => TypeId::of::<char>(),
+                    ValueType::Byte => TypeId::of::<u8>(),
+                    ValueType::Bool => TypeId::of::<bool>(),
+                    ValueType::AnyType => todo!("What data type should we use for this?")
+                }
+            } else {
+                self.ptr.as_ref().unwrap().dyn_type_id()
+            }
+        }
     }
 
     pub fn gc_info(&self) -> GcInfo {
-        unimplemented!()
+        if self.is_value() {
+            GcInfo::TempObject
+        } else {
+            unsafe {
+                self.ptr.as_ref().unwrap().gc_info()
+            }
+        }
     }
 
-    #[inline] pub unsafe fn set_gc_info(&self, _gc_info: GcInfo) {
-        unimplemented!()
+    #[inline] pub unsafe fn set_gc_info(&self, gc_info: GcInfo) {
+        if self.is_ptr() {
+            self.ptr.as_mut().unwrap().set_gc_info(gc_info);
+        } else {
+            unreachable!()
+        }
     }
 
     #[inline] pub unsafe fn as_ref<T>(&self) -> &T {
-        unimplemented!()
+        if self.is_ptr() {
+            let r = self.ptr.as_ref().unwrap().get_ptr().cast::<T>();
+            transmute::<&T, &T>(r.as_ref())
+        } else {
+            unreachable!()
+        }
     }
 
     #[inline] pub unsafe fn as_mut<T>(&self) -> &mut T {
-        unimplemented!()
+        if self.is_ptr() {
+            let mut mr = self.ptr.as_ref().unwrap().get_ptr().cast::<T>();
+            transmute::<&mut T, &mut T>(mr.as_mut())
+        } else {
+            unreachable!()
+        }
     }
 }
 

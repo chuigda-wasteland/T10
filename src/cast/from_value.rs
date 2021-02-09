@@ -12,12 +12,12 @@
 use std::any::TypeId;
 use std::mem::MaybeUninit;
 
-use crate::data::{Value, GcInfo};
+use crate::data::{Value, GcInfo, GCINFO_READ_MASK, GCINFO_WRITE_MASK};
 use crate::error::{TError, NullError, LifetimeError};
 use crate::void::Void;
 use crate::tyck::base::StaticBase;
 use crate::tyck::FFIAction;
-use crate::data::GcInfo::{MutSharedWithHost, SharedWithHost, Owned};
+use crate::data::GcInfo::{MutSharedToHost, SharedToHost};
 
 /// `GcInfoGuard` 是一个用于实现 `GcInfo` 更新的 RAII 装置
 ///
@@ -158,17 +158,22 @@ impl<'a, T> FromValueL1<'a, T> for Void where Void: FromValueL2<'a, T> {
     }
 }
 
-const INTO_REF_LIFETIMES: [GcInfo; 2] = [GcInfo::Owned, GcInfo::SharedWithHost];
+const INTO_REF_LIFETIMES: [GcInfo; 3] = [
+    GcInfo::Owned,
+    GcInfo::SharedToHost,
+    GcInfo::SharedFromHost
+];
+
 impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
     unsafe fn lifetime_check_l1(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         debug_assert!(!value.is_null());
         let actual = value.gc_info();
         match actual {
             GcInfo::Owned => {
-                value.set_gc_info(SharedWithHost);
-                Ok(GcInfoGuard::new(value, Owned, Owned))
+                value.set_gc_info(SharedToHost);
+                Ok(GcInfoGuard::new(value, GcInfo::Owned, GcInfo::Owned))
             },
-            GcInfo::SharedWithHost => {
+            GcInfo::SharedToHost | GcInfo::SharedFromHost => {
                 Ok(GcInfoGuard::no_action(value))
             },
             _ => Err(LifetimeError::new(&INTO_REF_LIFETIMES, FFIAction::Share, actual).into())
@@ -181,14 +186,18 @@ impl<'a, T> FromValueL1<'a, &'a T> for Void where Void: FromValueL2<'a, T> {
     }
 }
 
-const INTO_MUT_REF_LIFETIMES: [GcInfo; 2] = [GcInfo::Owned, GcInfo::MutSharedWithHost];
+const INTO_MUT_REF_LIFETIMES: [GcInfo; 2] = [
+    GcInfo::MutSharedFromHost,
+    GcInfo::Owned
+];
+
 impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
     unsafe fn lifetime_check_l1(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         debug_assert!(!value.is_null());
         let actual = value.gc_info();
-        if actual == GcInfo::Owned {
-            value.set_gc_info(MutSharedWithHost);
-            Ok(GcInfoGuard::new(value, GcInfo::Owned, GcInfo::Owned))
+        if actual as u8 & GCINFO_WRITE_MASK {
+            value.set_gc_info(MutSharedToHost);
+            Ok(GcInfoGuard::new(value, actual, actual))
         } else {
             Err(LifetimeError::new(&INTO_MUT_REF_LIFETIMES, FFIAction::MutShare, actual).into())
         }
@@ -216,14 +225,14 @@ impl<'a, T> FromValueL2<'a, T> for Void where Void: FromValueL3<'a, T> {
 
 const VALUE_TYPE_LIFETIMES: [GcInfo; 4] = [
     GcInfo::Owned,
-    GcInfo::SharedWithHost,
-    GcInfo::MutSharedWithHost,
-    GcInfo::OnStack
+    GcInfo::SharedFromHost,
+    GcInfo::SharedToHost,
+    GcInfo::TempObject
 ];
 impl<'a> FromValueL2<'a, i64> for Void {
     #[inline] unsafe fn lifetime_check_l2(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         let actual = value.gc_info();
-        if VALUE_TYPE_LIFETIMES.contains(&actual) {
+        if actual as u8 & GCINFO_READ_MASK {
             Ok(GcInfoGuard::no_action(value))
         } else {
             Err(LifetimeError::new(&VALUE_TYPE_LIFETIMES, FFIAction::Copy, actual).into())
