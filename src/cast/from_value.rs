@@ -59,7 +59,7 @@ impl<'a> GcInfoGuard<'a> {
 }
 
 impl<'a> Drop for GcInfoGuard<'a> {
-    fn drop(&mut self) {
+    #[inline] fn drop(&mut self) {
         if let Some(on_yank) = self.on_yank {
             unsafe {
                 self.value.set_gc_info(on_yank);
