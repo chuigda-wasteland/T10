@@ -82,7 +82,6 @@ mod test {
 
     use crate::data::{StaticWrapper, DynBase};
     use crate::func::{Value, RustFunction, RustCallable};
-    use std::intrinsics::volatile_store;
 
     struct S(i32);
 

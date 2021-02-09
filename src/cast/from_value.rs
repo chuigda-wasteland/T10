@@ -258,7 +258,7 @@ impl<'a> FromValueL2<'a, i64> for Void {
             let mut ret: MaybeUninit<i64> = MaybeUninit::uninit();
             value.ptr.as_mut().unwrap().move_out_ck(
                 &mut ret as *mut MaybeUninit<_> as *mut (),
-                TypeId::of::<MaybeUninit<i64>>()
+                std::any::TypeId::of::<MaybeUninit<i64>>()
             );
             ret.assume_init()
         }

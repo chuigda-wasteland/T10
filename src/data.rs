@@ -51,6 +51,7 @@ pub const GCINFO_DROP_MASK:  u8 = 0b0100;
 pub const GCINFO_READ_MASK:  u8 = 0b0010;
 pub const GCINFO_WRITE_MASK: u8 = 0b0001;
 
+#[repr(C, align(8))]
 union WrapperData<T> {
     value: ManuallyDrop<MaybeUninit<T>>,
     ptr: NonNull<T>
@@ -133,9 +134,6 @@ pub trait DynBase {
     /// 运行时获取类型检查信息
     fn dyn_tyck_info(&self) -> TypeCheckInfo;
 
-    /// 获取指向实际数据的指针
-    unsafe fn get_ptr(&self) -> NonNull<()>;
-
     /// 将数据移动到 dest 中。dest 应为一个 `MaybeUninit`
     #[cfg(not(debug_assertions))]
     unsafe fn move_out(&mut self, dest: *mut ());
@@ -162,15 +160,6 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
 
     fn dyn_tyck_info(&self) -> TypeCheckInfo {
         <Void as StaticBase<Ts>>::tyck_info()
-    }
-
-    unsafe fn get_ptr(&self) -> NonNull<()> {
-        if self.gc_info & GCINFO_OWNED_MASK != 0{
-            self.borrow_value()
-        } else {
-            debug_assert_ne!(self.gc_info & GCINFO_DROP_MASK, 0);
-            self.borrow_ptr()
-        }
     }
 
     #[cfg(not(debug_assertions))]
@@ -234,6 +223,7 @@ pub union ValueTypedDataInner {
 
 #[derive(Copy, Clone)]
 pub struct ValueTypedData {
+    #[allow(dead_code)]
     pub(crate) tag: usize,
     pub inner: ValueTypedDataInner
 }
@@ -313,14 +303,14 @@ impl Value {
             GcInfo::TempObject
         } else {
             unsafe {
-                GcInfo::from(*(self.ptr_inner.part1 as *mut u8))
+                GcInfo::from(*(self.ptr as *mut u8))
             }
         }
     }
 
     #[inline] pub unsafe fn set_gc_info(&self, gc_info: GcInfo) {
         if self.is_ptr() {
-            *(self.ptr_inner.part1 as *mut u8) = gc_info as u8;
+            *(self.ptr as *mut u8) = gc_info as u8;
         } else {
             // do nothing, does not matter
         }
@@ -328,8 +318,11 @@ impl Value {
 
     #[inline] pub unsafe fn as_ref<T>(&self) -> &T {
         if self.is_ptr() {
-            let r = self.ptr.as_ref().unwrap().get_ptr().cast::<T>();
-            transmute::<&T, &T>(r.as_ref())
+            if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
+                ((self.ptr as *mut u8).offset(8) as *mut T as *const T).as_ref().unwrap()
+            } else {
+                ((self.ptr as *mut u8).offset(8) as *mut *const T as *const *const T).as_ref().unwrap().as_ref().unwrap()
+            }
         } else {
             unreachable!()
         }
@@ -337,8 +330,11 @@ impl Value {
 
     #[inline] pub unsafe fn as_mut<T>(&self) -> &mut T {
         if self.is_ptr() {
-            let mut mr = self.ptr.as_ref().unwrap().get_ptr().cast::<T>();
-            transmute::<&mut T, &mut T>(mr.as_mut())
+            if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
+                ((self.ptr as *mut u8).offset(8) as *mut T).as_mut().unwrap()
+            } else {
+                ((self.ptr as *mut u8).offset(8) as *mut *mut T).as_mut().unwrap().as_mut().unwrap()
+            }
         } else {
             unreachable!()
         }
