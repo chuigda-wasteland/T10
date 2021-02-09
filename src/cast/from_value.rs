@@ -9,7 +9,6 @@
 //!   - 检查并更新 `Value` 的 GC 信息，并且获得一个用于恢复/回滚的 RAII 对象
 //!   - 进行实际的数据拷贝/共享/转移
 
-use std::any::TypeId;
 use std::mem::MaybeUninit;
 
 use crate::data::{Value, GcInfo, GCINFO_READ_MASK, GCINFO_WRITE_MASK};

@@ -13,7 +13,6 @@ use crate::tyck::TypeCheckInfo;
 use crate::tyck::base::StaticBase;
 use crate::util::FatPointer;
 use crate::void::Void;
-use crate::cast::from_value::GcInfoGuard;
 
 /// 堆上对象的状态
 ///
@@ -57,10 +56,10 @@ union WrapperData<T> {
     ptr: NonNull<T>
 }
 
-#[repr(align(8))]
+#[repr(C, align(8))]
 pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
-    data: WrapperData<Ta>,
     gc_info: u8,
+    data: WrapperData<Ta>,
     _phantom: PhantomData<&'a Ts>
 }
 
@@ -106,14 +105,6 @@ impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
     #[inline] pub unsafe fn take_value(&mut self) -> Ta {
         ManuallyDrop::take(&mut self.data.value).assume_init()
     }
-
-    #[inline] fn gc_info_impl(&self) -> GcInfo {
-        GcInfo::from(self.gc_info)
-    }
-
-    #[inline] fn set_gc_info_impl(&mut self, gc_info: GcInfo) {
-        self.gc_info = gc_info as u8
-    }
 }
 
 impl<'a, Ta: 'a, Ts: 'static> Drop for Wrapper<'a, Ta, Ts> {
@@ -141,11 +132,6 @@ pub trait DynBase {
     fn dyn_tyck(&self, tyck_info: &TypeCheckInfo) -> bool;
     /// 运行时获取类型检查信息
     fn dyn_tyck_info(&self) -> TypeCheckInfo;
-
-    /// 获取 GC 信息
-    fn gc_info(&self) -> GcInfo;
-    /// 设置 GC 信息
-    fn set_gc_info(&mut self, gc_info: GcInfo);
 
     /// 获取指向实际数据的指针
     unsafe fn get_ptr(&self) -> NonNull<()>;
@@ -178,14 +164,6 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
         <Void as StaticBase<Ts>>::tyck_info()
     }
 
-    fn gc_info(&self) -> GcInfo {
-         self.gc_info_impl()
-    }
-
-    fn set_gc_info(&mut self, gc_info: GcInfo) {
-        self.set_gc_info_impl(gc_info)
-    }
-
     unsafe fn get_ptr(&self) -> NonNull<()> {
         if self.gc_info & GCINFO_OWNED_MASK != 0{
             self.borrow_value()
@@ -203,7 +181,7 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
 
     #[cfg(debug_assertions)]
     unsafe fn move_out_ck(&mut self, dest: *mut (), dest_ty: TypeId) {
-        debug_assert_eq!(self.gc_info(), GcInfo::Owned);
+        debug_assert_eq!(GcInfo::from(self.gc_info), GcInfo::Owned);
         debug_assert_eq!(dest_ty, TypeId::of::<MaybeUninit<Ts>>());
         let dest = (dest as *mut MaybeUninit<Ta>).as_mut().unwrap();
         dest.write(self.take_value());
@@ -335,14 +313,14 @@ impl Value {
             GcInfo::TempObject
         } else {
             unsafe {
-                self.ptr.as_ref().unwrap().gc_info()
+                GcInfo::from(*(self.ptr_inner.part1 as *mut u8))
             }
         }
     }
 
     #[inline] pub unsafe fn set_gc_info(&self, gc_info: GcInfo) {
         if self.is_ptr() {
-            self.ptr.as_mut().unwrap().set_gc_info(gc_info);
+            *(self.ptr_inner.part1 as *mut u8) = gc_info as u8;
         } else {
             // do nothing, does not matter
         }

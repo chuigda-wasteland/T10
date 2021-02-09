@@ -117,15 +117,13 @@ mod test {
 
     #[bench] fn bench_simple_call2(b: &mut Bencher) {
         let f = RustFunction { f: baz, _phantom: PhantomData::default() };
-        let mut px = 0i64;
         b.iter(|| {
             for i in 0..1000i64 {
                 for j in 0..1000i64 {
                     let v1 = Value::from(i);
                     let v2 = Value::from(j);
                     unsafe {
-                        let x = f.call_prechecked(&[v1, v2]).unwrap().value_typed_data.inner.int;
-                        volatile_store(&mut px as *mut i64, x);
+                        let _ = f.call_prechecked(&[v1, v2]);
                     }
                 }
             }
