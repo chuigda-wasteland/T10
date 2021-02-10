@@ -8,6 +8,7 @@ use test::Bencher;
 use t10::func::{RustFunction, RustCallable};
 use t10::data::{StaticWrapper, DynBase, Value};
 use std::marker::PhantomData;
+use std::intrinsics::volatile_load;
 
 struct S(i32);
 
@@ -38,9 +39,8 @@ fn bench_simple_call(b: &mut Bencher) {
     })
 }
 
-/*
 #[bench]
-fn bench_calc(b: &mut Bencher) {
+fn bench_rust_call(b: &mut Bencher) {
     let mut s1 = S(13);
     let s2 = S(5);
     b.iter(|| {
@@ -56,7 +56,6 @@ fn bench_calc(b: &mut Bencher) {
         }
     })
 }
-*/
 
 #[bench]
 fn bench_simple_call2(b: &mut Bencher) {

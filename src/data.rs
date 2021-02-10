@@ -30,6 +30,8 @@ pub enum GcInfo {
     SharedToHost       = 0b1010,
     /// 这个对象正在 T10 可变共享到 Rust
     MutSharedToHost    = 0b1000,
+    /// 对象先可变借用自 Rust，然后再次从 T10 可变共享给 Rust，仅适用于 FFI 调用的情形
+    MutReSharedToHost  = 0b0000,
     /// 这个对象已经被移动到 Rust 一侧
     MovedToHost        = 0b0100,
     /// 这个对象正要被回收
@@ -317,26 +319,28 @@ impl Value {
     }
 
     #[inline] pub unsafe fn as_ref<T>(&self) -> &T {
-        if self.is_ptr() {
-            if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
-                ((self.ptr as *mut u8).offset(8) as *mut T as *const T).as_ref().unwrap()
-            } else {
-                ((self.ptr as *mut u8).offset(8) as *mut *const T as *const *const T).as_ref().unwrap().as_ref().unwrap()
-            }
+        // TODO this is nasty
+        debug_assert!(self.is_ptr());
+        if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
+            let r = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut T);
+            transmute::<&T, &T>(r.as_ref())
         } else {
-            unreachable!()
+            let rr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut *mut T);
+            let r = NonNull::new_unchecked(*rr.as_ref());
+            transmute::<&T, &T>(r.as_ref())
         }
     }
 
     #[inline] pub unsafe fn as_mut<T>(&self) -> &mut T {
-        if self.is_ptr() {
-            if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
-                ((self.ptr as *mut u8).offset(8) as *mut T).as_mut().unwrap()
-            } else {
-                ((self.ptr as *mut u8).offset(8) as *mut *mut T).as_mut().unwrap().as_mut().unwrap()
-            }
+        // TODO this is nasty
+        debug_assert!(self.is_ptr());
+        if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
+            let mut mr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut T);
+            transmute::<&mut T, &mut T>(mr.as_mut())
         } else {
-            unreachable!()
+            let rmr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut *mut T);
+            let mut mr = NonNull::new_unchecked(*rmr.as_ref());
+            transmute::<&mut T, &mut T>(mr.as_mut())
         }
     }
 }

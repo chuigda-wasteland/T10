@@ -188,13 +188,14 @@ const INTO_MUT_REF_LIFETIMES: [GcInfo; 2] = [
     GcInfo::MutSharedFromHost,
     GcInfo::Owned
 ];
+const GCINFO_RW_MASK: u8 = GCINFO_READ_MASK | GCINFO_WRITE_MASK;
 
 impl<'a, T> FromValueL1<'a, &'a mut T> for Void where Void: FromValueL2<'a, T> {
     unsafe fn lifetime_check_l1(value: &'a Value) -> Result<GcInfoGuard<'a>, TError> {
         debug_assert!(!value.is_null());
         let actual = value.gc_info();
         if actual as u8 & GCINFO_WRITE_MASK != 0 {
-            value.set_gc_info(GcInfo::MutSharedToHost);
+            value.set_gc_info(GcInfo::from(actual as u8 & !GCINFO_RW_MASK));
             Ok(GcInfoGuard::new(value, actual, actual))
         } else {
             Err(LifetimeError::new(&INTO_MUT_REF_LIFETIMES, FFIAction::MutShare, actual).into())
