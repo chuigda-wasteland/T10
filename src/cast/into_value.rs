@@ -88,7 +88,7 @@ impl<'a, T> IntoValueL1<'a, Option<T>> for Void where Void: IntoValueL2<'a, T> {
         if let Some(t) = t {
             <Void as IntoValueL2<'a, T>>::into_value_l2(t)
         } else {
-            Ok(Value::null_ptr())
+            Ok(Value::null())
         }
     }
 }

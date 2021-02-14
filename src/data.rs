@@ -205,7 +205,6 @@ impl From<u8> for ValueType {
 }
 
 pub(crate) const VALUE_MASK      : u8 = 0b00000001;
-pub(crate) const NULL_MASK       : u8 = 0b00000010;
 pub(crate) const VALUE_TYPE_MASK : u8 = 0b01111100;
 
 #[derive(Copy, Clone)]
@@ -243,31 +242,16 @@ pub union Value {
 }
 
 impl Value {
-    /// 创建一个空指针
-    #[inline] pub fn null_ptr() -> Self {
+    /// 创建一个空指针或者空值
+    #[inline] pub fn null() -> Self {
         Self {
             ptr_inner: FatPointer::null()
         }
     }
 
-    /// 创建一个空值
-    ///
-    /// 由于 Pr47 采用值类型+引用类型的，空值和空指针并不是等同的概念。请见
-    /// <https://github.com/Pr47/doc47/issues/9>
-    ///
-    /// > TODO 需要更新文档部分
-    #[inline] pub fn null_value(value_type: ValueType) -> Self {
-        Self {
-            ptr_inner: FatPointer::from_parts(
-                (value_type as u8 | VALUE_MASK | NULL_MASK) as usize,
-                0
-            )
-        }
-    }
-
     #[inline] pub fn is_null(&self) -> bool {
         unsafe {
-            (self.ptr_inner.part1 == 0) || (self.ptr_inner.part1 as u8 & NULL_MASK != 0)
+            self.ptr_inner.part1 == 0
         }
     }
 
@@ -283,20 +267,20 @@ impl Value {
         }
     }
 
-    #[inline] pub fn type_id(&self) -> TypeId {
-        unsafe {
-            if self.ptr_inner.part1 as u8 & VALUE_MASK != 0 {
-                match ValueType::from(self.ptr_inner.part1 as u8 & VALUE_TYPE_MASK) {
-                    ValueType::Int => TypeId::of::<i64>(),
-                    ValueType::Float => TypeId::of::<f64>(),
-                    ValueType::Char => TypeId::of::<char>(),
-                    ValueType::Byte => TypeId::of::<u8>(),
-                    ValueType::Bool => TypeId::of::<bool>(),
-                    ValueType::AnyType => todo!("What data type should we use for this?")
-                }
-            } else {
-                self.ptr.as_ref().unwrap().dyn_type_id()
+    /// # safety
+    /// requires the data to be not null
+    #[inline] pub unsafe fn type_id(&self) -> TypeId {
+        if self.ptr_inner.part1 as u8 & VALUE_MASK != 0 {
+            match ValueType::from(self.ptr_inner.part1 as u8 & VALUE_TYPE_MASK) {
+                ValueType::Int => TypeId::of::<i64>(),
+                ValueType::Float => TypeId::of::<f64>(),
+                ValueType::Char => TypeId::of::<char>(),
+                ValueType::Byte => TypeId::of::<u8>(),
+                ValueType::Bool => TypeId::of::<bool>(),
+                ValueType::AnyType => todo!("What data type should we use for this?")
             }
+        } else {
+            self.ptr.as_ref().unwrap().dyn_type_id()
         }
     }
 
