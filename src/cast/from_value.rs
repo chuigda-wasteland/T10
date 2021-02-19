@@ -15,7 +15,6 @@ use crate::data::{Value, GcInfo, GCINFO_READ_MASK, GCINFO_WRITE_MASK};
 use crate::error::{TError, NullError, LifetimeError};
 use crate::tyck::FFIAction;
 use crate::tyck::base::StaticBase;
-use crate::util::UnwrapUnchecked;
 use crate::void::Void;
 
 /// `GcInfoGuard` 是一个用于实现 `GcInfo` 更新的 RAII 装置
@@ -245,7 +244,7 @@ impl<'a> FromValueL2<'a, i64> for Void {
             value.value_typed_data.inner.int
         } else {
             let mut ret: MaybeUninit<i64> = MaybeUninit::uninit();
-            value.ptr.as_mut().unwrap().move_out(
+            value.ptr.as_mut().unwrap_unchecked().move_out(
                 &mut ret as *mut MaybeUninit<_> as *mut ()
             );
             ret.assume_init()
@@ -258,7 +257,7 @@ impl<'a> FromValueL2<'a, i64> for Void {
             value.value_typed_data.inner.int
         } else {
             let mut ret: MaybeUninit<i64> = MaybeUninit::uninit();
-            value.ptr.as_mut().unwrap().move_out_ck(
+            value.ptr.as_mut().unwrap_unchecked().move_out_ck(
                 &mut ret as *mut MaybeUninit<_> as *mut (),
                 std::any::TypeId::of::<MaybeUninit<i64>>()
             );

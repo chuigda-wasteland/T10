@@ -280,7 +280,7 @@ impl Value {
                 ValueType::AnyType => todo!("What data type should we use for this?")
             }
         } else {
-            self.ptr.as_ref().unwrap().dyn_type_id()
+            self.ptr.as_ref().unwrap_unchecked().dyn_type_id()
         }
     }
 

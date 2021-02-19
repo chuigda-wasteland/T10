@@ -3,6 +3,7 @@
 #![feature(specialization)]
 #![feature(test)]
 #![feature(core_intrinsics)]
+#![feature(option_result_unwrap_unchecked)]
 
 pub mod cast;
 pub mod data;
