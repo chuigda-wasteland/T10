@@ -15,6 +15,7 @@ use crate::data::{Value, GcInfo, GCINFO_READ_MASK, GCINFO_WRITE_MASK};
 use crate::error::{TError, NullError, LifetimeError};
 use crate::tyck::FFIAction;
 use crate::tyck::base::StaticBase;
+use crate::util::UnwrapUnchecked;
 use crate::void::Void;
 
 /// `GcInfoGuard` 是一个用于实现 `GcInfo` 更新的 RAII 装置
@@ -282,14 +283,14 @@ impl<'a, T> FromValueL3<'a, T> for Void where Void: StaticBase<T> {
 
     #[cfg(not(debug_assertions))]
     #[inline] default unsafe fn from_value_l3(value: &'a Value, out: &mut MaybeUninit<T>) {
-        value.ptr.as_mut().unwrap().move_out(
+        value.ptr.as_mut().unwrap_unchecked().move_out(
             out as *mut MaybeUninit<_> as *mut ()
         );
     }
 
     #[cfg(debug_assertions)]
     #[inline] default unsafe fn from_value_l3(value: &'a Value, out: &mut MaybeUninit<T>) {
-        value.ptr.as_mut().unwrap().move_out_ck(
+        value.ptr.as_mut().unwrap_unchecked().move_out_ck(
             out as *mut MaybeUninit<_> as *mut (),
             <Void as StaticBase<T>>::base_type_id()
         );

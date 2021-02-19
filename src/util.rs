@@ -15,6 +15,35 @@ impl FatPointer {
     }
 }
 
+pub trait UnwrapUnchecked {
+    type UnwrapResult;
+    unsafe fn unwrap_unchecked(self) -> Self::UnwrapResult;
+}
+
+impl<T> UnwrapUnchecked for Option<T> {
+    type UnwrapResult = T;
+
+    unsafe fn unwrap_unchecked(self) -> Self::UnwrapResult {
+        if let Some(value) = self {
+            value
+        } else {
+            core::hint::unreachable_unchecked()
+        }
+    }
+}
+
+impl<T, E> UnwrapUnchecked for Result<T, E> {
+    type UnwrapResult = T;
+
+    unsafe fn unwrap_unchecked(self) -> Self::UnwrapResult {
+        if let Ok(value) = self {
+            value
+        } else {
+            core::hint::unreachable_unchecked()
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::any::Any;
