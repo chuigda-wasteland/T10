@@ -8,6 +8,7 @@
 pub mod cast;
 pub mod data;
 pub mod ds;
+pub mod rd93;
 pub mod error;
 pub mod func;
 pub mod tyck;

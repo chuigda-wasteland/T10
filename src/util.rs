@@ -15,6 +15,8 @@ impl FatPointer {
     }
 }
 
+// Don't use our own UnwrapUnchecked since Rust nightly supports this
+/*
 pub trait UnwrapUnchecked {
     type UnwrapResult;
     unsafe fn unwrap_unchecked(self) -> Self::UnwrapResult;
@@ -43,6 +45,7 @@ impl<T, E> UnwrapUnchecked for Result<T, E> {
         }
     }
 }
+*/
 
 #[cfg(test)]
 mod test {
