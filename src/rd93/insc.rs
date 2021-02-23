@@ -7,11 +7,10 @@ pub enum Insc {
     IntSub { lhs_value: usize, rhs_value: usize, dest_value: usize },
     IntEq{ lhs_value: usize, rhs_value: usize, dest_value: usize },
     JumpIfTrue { cond_value: usize, jump_dest: usize },
-    FuncCall { func_id: usize, arg_values: Vec<usize> },
+    FuncCall { func_id: usize, arg_values: Vec<usize>, ret_value_dest: usize },
     Return { ret_value: usize },
     ReturnNothing,
-    UnreachableInsc,
-    Halt
+    UnreachableInsc
 }
 
 #[derive(Copy, Clone)]
@@ -19,6 +18,14 @@ pub struct CompiledFuncInfo {
     pub start_addr: usize,
     pub arg_count: usize,
     pub stack_size: usize
+}
+
+impl CompiledFuncInfo {
+    pub fn new(start_addr: usize, arg_count: usize, stack_size: usize) -> Self {
+        Self {
+            start_addr, arg_count, stack_size
+        }
+    }
 }
 
 pub struct CompiledProgram {

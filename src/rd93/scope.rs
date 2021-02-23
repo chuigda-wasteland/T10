@@ -3,7 +3,7 @@ use crate::data::Value;
 pub struct Scope {
     pub values: Box<[Value]>,
     pub ret_addr: usize,
-    pub ret_loc: usize
+    pub ret_value_loc: usize
 }
 
 impl Scope {
@@ -13,7 +13,7 @@ impl Scope {
         Self {
             values: values.into_boxed_slice(),
             ret_addr,
-            ret_loc: 0
+            ret_value_loc: 0
         }
     }
 }
