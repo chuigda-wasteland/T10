@@ -10,16 +10,24 @@ pub enum Insc {
     FuncCall { func_id: usize, arg_values: Vec<usize> },
     Return { ret_value: usize },
     ReturnNothing,
-    UnreachableInsc
+    UnreachableInsc,
+    Halt
+}
+
+#[derive(Copy, Clone)]
+pub struct CompiledFuncInfo {
+    pub start_addr: usize,
+    pub arg_count: usize,
+    pub stack_size: usize
 }
 
 pub struct CompiledProgram {
     pub inscs: Vec<Insc>,
-    pub funcs: Vec<usize>
+    pub funcs: Vec<CompiledFuncInfo>
 }
 
 impl CompiledProgram {
-    pub fn new(inscs: Vec<Insc>, funcs: Vec<usize>) -> Self {
+    pub fn new(inscs: Vec<Insc>, funcs: Vec<CompiledFuncInfo>) -> Self {
         Self {
             inscs,
             funcs
