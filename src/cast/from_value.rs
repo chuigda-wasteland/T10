@@ -75,7 +75,7 @@ impl<'a> Drop for GcInfoGuard<'a> {
 /// # use t10::cast::from_value::FromValue;
 /// # use t10::void::Void;
 /// # fn main() {
-/// let v = Value::null_value(ValueType::Int);
+/// let v = Value::null();
 /// unsafe {
 ///     let x = <Void as FromValue<Option<&'static i64>>>::from_value(&v);
 /// }
