@@ -10,7 +10,7 @@ impl StackSlice {
         unimplemented!()
     }
 
-    pub unsafe fn get_value(&mut self, idx: usize, value: Value) {
+    pub unsafe fn get_value(&mut self, idx: usize) -> Value {
         unimplemented!()
     }
 }
