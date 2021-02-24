@@ -16,4 +16,24 @@ impl Scope {
             ret_value_loc: 0
         }
     }
+
+    #[cfg(not(debug_assertions))]
+    pub unsafe fn get_value(&self, idx: usize) -> Value {
+        *self.values.get_unchecked(idx)
+    }
+
+    #[cfg(debug_assertions)]
+    pub unsafe fn get_value(&self, idx: usize) -> Value {
+        self.values[idx]
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub unsafe fn set_value(&mut self, idx: usize, value: Value) {
+        *self.values.get_unchecked_mut(idx) = value;
+    }
+
+    #[cfg(debug_assertions)]
+    pub unsafe fn set_value(&mut self, idx: usize, value: Value) {
+        self.values[idx] = value;
+    }
 }

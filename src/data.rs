@@ -182,30 +182,28 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
 /// “值类型对象”的类型标记
 #[derive(Copy, Clone)]
 pub enum ValueType {
-    Int     = 0b00000100,
-    Float   = 0b00001000,
-    Char    = 0b00001100,
-    Byte    = 0b00010000,
-    Bool    = 0b00010100,
-    AnyType = 0b00011000
+    Int     = 0b00000010,
+    Float   = 0b00000100,
+    Char    = 0b00000110,
+    Bool    = 0b00001000,
+    AnyType = 0b00001010,
 }
 
 impl From<u8> for ValueType {
     fn from(src: u8) -> Self {
         match src {
-            1 => ValueType::Int,
-            2 => ValueType::Float,
-            3 => ValueType::Char,
-            4 => ValueType::Byte,
-            5 => ValueType::Bool,
-            6 => ValueType::AnyType,
+            0b00000010 => ValueType::Int,
+            0b00000100 => ValueType::Float,
+            0b00000110 => ValueType::Char,
+            0b00001000 => ValueType::Bool,
+            0b00001010 => ValueType::AnyType,
             _ => unreachable!("invalid ValueType")
         }
     }
 }
 
 pub(crate) const VALUE_MASK      : u8 = 0b00000001;
-pub(crate) const VALUE_TYPE_MASK : u8 = 0b01111100;
+pub(crate) const VALUE_TYPE_MASK : u8 = 0b00001110;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -275,7 +273,6 @@ impl Value {
                 ValueType::Int => TypeId::of::<i64>(),
                 ValueType::Float => TypeId::of::<f64>(),
                 ValueType::Char => TypeId::of::<char>(),
-                ValueType::Byte => TypeId::of::<u8>(),
                 ValueType::Bool => TypeId::of::<bool>(),
                 ValueType::AnyType => todo!("What data type should we use for this?")
             }
@@ -361,13 +358,14 @@ impl<'a> From<char> for Value {
 }
 
 impl<'a> From<bool> for Value {
-    fn from(_boolean: bool) -> Self {
-        unimplemented!()
-    }
-}
-
-impl<'a> From<u8> for Value {
-    fn from(_byte: u8) -> Self {
-        unimplemented!()
+    fn from(boolean: bool) -> Self {
+        Self {
+            value_typed_data: ValueTypedData {
+                tag: (ValueType::Bool as usize) | (VALUE_MASK as usize),
+                inner: ValueTypedDataInner {
+                    boolean
+                }
+            }
+        }
     }
 }
