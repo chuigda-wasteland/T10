@@ -56,6 +56,18 @@ impl RD93 {
                     let rhs = scope.get_value(*rhs_value).value_typed_data.inner.int;
                     scope.set_value(*dest_value, Value::from(lhs == rhs));
                 },
+                Insc::IntGt { lhs_value, rhs_value, dest_value } => {
+                    debug_assert_eq!(scope.get_value(*lhs_value).type_id(), TypeId::of::<i64>());
+                    debug_assert_eq!(scope.get_value(*rhs_value).type_id(), TypeId::of::<i64>());
+                    let lhs = scope.get_value(*lhs_value).value_typed_data.inner.int;
+                    let rhs = scope.get_value(*rhs_value).value_typed_data.inner.int;
+                    scope.set_value(*dest_value, Value::from(lhs > rhs));
+                },
+                Insc::Incr { value } => {
+                    debug_assert_eq!(scope.get_value(*value).type_id(), TypeId::of::<i64>());
+                    let i = scope.get_value(*value).value_typed_data.inner.int;
+                    scope.set_value(*value, Value::from(i.wrapping_add(1)))
+                },
                 Insc::JumpIfTrue { cond_value, jump_dest } => {
                     debug_assert_eq!(scope.get_value(*cond_value).type_id(), TypeId::of::<bool>());
                     let cond = scope.get_value(*cond_value).value_typed_data.inner.boolean;
@@ -63,6 +75,10 @@ impl RD93 {
                         insc_ptr = *jump_dest;
                         continue;
                     }
+                },
+                Insc::Jump { jump_dest } => {
+                    insc_ptr = *jump_dest;
+                    continue;
                 },
                 Insc::FuncCall { func_id, arg_values, ret_value_dest: _ } => {
                     let func_info: CompiledFuncInfo = *program.funcs.get_unchecked(*func_id);
@@ -99,8 +115,17 @@ impl RD93 {
                         }
                     }
                 },
+                Insc::ReturnNothing => {
+                    insc_ptr = scope.ret_addr;
+                    if scopes.len() == 1 {
+                        return Value::null()
+                    } else {
+                        scopes.pop();
+                        scope = scopes.last_mut().unwrap_unchecked();
+                    }
+                },
                 Insc::UnreachableInsc => panic!("this is an internal, unreachable insc"),
-                _ => todo!("unimplemented insc")
+                // _ => todo!("unimplemented insc")
             }
 
             insc_ptr += 1;

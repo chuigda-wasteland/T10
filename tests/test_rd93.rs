@@ -14,9 +14,8 @@ fn test_add_func() {
         CompiledFuncInfo::new(0, 2, 2)
     ]);
 
-    let mut rd93 = RD93::new(&program);
     let ret_value = unsafe {
-        rd93.run_func(0, &[Value::from(13i64), Value::from(42i64)])
+        RD93::run_func(&program, 0, &[Value::from(13i64), Value::from(42i64)])
     };
     unsafe {
         assert_eq!(ret_value.type_id(), TypeId::of::<i64>());
@@ -43,9 +42,8 @@ fn test_func_call() {
         CompiledFuncInfo::new(6, 2, 2), // add
     ]);
 
-    let mut rd93 = RD93::new(&program);
     let ret_value = unsafe {
-        rd93.run_func(0, &[Value::from(13i64), Value::from(42i64)])
+        RD93::run_func(&program, 0, &[Value::from(13i64), Value::from(42i64)])
     };
     unsafe {
         assert_eq!(ret_value.type_id(), TypeId::of::<i64>());
@@ -75,9 +73,8 @@ fn test_fibonacci() {
         CompiledFuncInfo::new(0, 1, 4),
     ]);
 
-    let mut rd93 = RD93::new(&program);
     let ret_value = unsafe {
-        rd93.run_func(0, &[Value::from(10i64)])
+        RD93::run_func(&program, 0, &[Value::from(10i64)])
     };
     unsafe {
         assert_eq!(ret_value.type_id(), TypeId::of::<i64>());
