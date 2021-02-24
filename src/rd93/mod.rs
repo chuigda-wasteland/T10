@@ -2,7 +2,7 @@
 //! Benchmarking
 
 pub mod insc;
-pub mod scope;
+pub mod stack;
 
 use std::any::TypeId;
 
