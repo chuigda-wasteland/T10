@@ -1,3 +1,4 @@
+use std::mem::MaybeUninit;
 use std::time::Instant;
 
 use t10::data::Value;
@@ -16,24 +17,25 @@ fn bench_fib35() {
         /*06*/ Insc::IntSub { lhs_value: 0, rhs_value: 1, dest_value: 2 },
         /*07*/ Insc::MakeIntConst { c: 2, dest_value: 1 },
         /*08*/ Insc::IntSub { lhs_value: 0, rhs_value: 1, dest_value: 3 },
-        /*09*/ Insc::FuncCall { func_id: 0, arg_values: vec![2], ret_value_dest: 2 },
-        /*10*/ Insc::FuncCall { func_id: 0, arg_values: vec![3], ret_value_dest: 3 },
+        /*09*/ Insc::FuncCall { func_id: 0, arg_values: vec![2], ret_value_locs: vec![2] },
+        /*10*/ Insc::FuncCall { func_id: 0, arg_values: vec![3], ret_value_locs: vec![3] },
         /*11*/ Insc::IntAdd { lhs_value: 2, rhs_value: 3, dest_value: 2 },
-        /*12*/ Insc::Return { ret_value: 2 },
-        /*13*/ Insc::Return { ret_value: 1 }
+        /*12*/ Insc::Return { ret_values: vec![2] },
+        /*13*/ Insc::Return { ret_values: vec![1] }
     ], vec![
-        CompiledFuncInfo::new(0, 1, 4),
+        CompiledFuncInfo::new(0, 1, 1, 4),
     ]);
     for _ in 0..10 {
         let start_time = Instant::now();
-        let ret_value = unsafe {
-            RD93::run_func(&program, 0, &[Value::from(35i64)])
+        let mut ret_value = vec![MaybeUninit::uninit()];
+        unsafe {
+            RD93::run_func(&program, 0, &[Value::from(35i64)], &mut ret_value);
         };
         let end_time = Instant::now();
         unsafe {
-            eprintln!("fib(35) = {}", ret_value.value_typed_data.inner.int);
-            eprintln!("{} millis elapsed", (end_time - start_time).as_millis())
+            eprintln!("fib(35) = {}", ret_value[0].assume_init().value_typed_data.inner.int);
         }
+        eprintln!("{} millis elapsed", (end_time - start_time).as_millis());
     }
 }
 
@@ -54,12 +56,12 @@ fn bench_loop100m() {
         /*11*/ Insc::Jump { jump_dest: 2 },
         /*12*/ Insc::ReturnNothing
     ], vec![
-        CompiledFuncInfo::new(0, 0, 4)
+        CompiledFuncInfo::new(0, 0, 0, 4)
     ]);
     for _ in 0..10 {
         let start_time = Instant::now();
-        let _ = unsafe {
-            RD93::run_func(&program, 0, &[])
+        unsafe {
+            RD93::run_func(&program, 0, &[], &mut [])
         };
         let end_time = Instant::now();
         eprintln!("{} millis elapsed", (end_time - start_time).as_millis())

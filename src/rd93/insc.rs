@@ -10,8 +10,8 @@ pub enum Insc {
     Incr { value: usize },
     JumpIfTrue { cond_value: usize, jump_dest: usize },
     Jump { jump_dest: usize },
-    FuncCall { func_id: usize, arg_values: Vec<usize>, ret_value_dest: usize },
-    Return { ret_value: usize },
+    FuncCall { func_id: usize, arg_values: Vec<usize>, ret_value_locs: Vec<usize> },
+    Return { ret_values: Vec<usize> },
     ReturnNothing,
     UnreachableInsc
 }
@@ -20,13 +20,14 @@ pub enum Insc {
 pub struct CompiledFuncInfo {
     pub start_addr: usize,
     pub arg_count: usize,
-    pub stack_size: usize
+    pub ret_count: usize,
+    pub stack_size: usize,
 }
 
 impl CompiledFuncInfo {
-    pub fn new(start_addr: usize, arg_count: usize, stack_size: usize) -> Self {
+    pub fn new(start_addr: usize, arg_count: usize, ret_count: usize, stack_size: usize) -> Self {
         Self {
-            start_addr, arg_count, stack_size
+            start_addr, arg_count, ret_count, stack_size
         }
     }
 }

@@ -5,72 +5,91 @@ pub mod insc;
 pub mod stack;
 
 use std::any::TypeId;
+use std::mem::MaybeUninit;
 
 use crate::data::Value;
 use crate::rd93::insc::{CompiledProgram, CompiledFuncInfo, Insc};
-use crate::rd93::scope::Scope;
+use crate::rd93::stack::Stack;
 
 pub struct RD93 ();
 
 impl RD93 {
-    pub unsafe fn run_func(program: &CompiledProgram, func_id: usize, args: &[Value]) -> Value {
+    pub unsafe fn run_func(
+        program: &CompiledProgram,
+        func_id: usize,
+        args: &[Value],
+        outputs: &mut [MaybeUninit<Value>]
+    ) {
         let func_info: CompiledFuncInfo = program.funcs[func_id];
+        let dummy_ret_locs = [];
         debug_assert_eq!(args.len(), func_info.arg_count);
+        debug_assert_eq!(outputs.len(), func_info.ret_count);
 
         let mut insc_ptr = func_info.start_addr;
-        let mut scopes = vec![];
-        let mut top_scope = Scope::new(func_info.stack_size, 0);
+        let mut stack = Stack::new();
+        let mut cur_stack_slice = stack.ext_func_call_grow_stack(
+            func_info.stack_size,
+            args,
+            &dummy_ret_locs
+        );
         for (idx, arg) in args.iter().enumerate() {
-            top_scope.set_value(idx, *arg);
+            cur_stack_slice.set_value(idx, *arg);
         }
-        scopes.push(top_scope);
 
-        let mut scope: &mut Scope = scopes.last_mut().unwrap_unchecked();
         loop {
-            let mut insc: &Insc = program.inscs.get_unchecked(insc_ptr);
-
+            let insc: &Insc = program.inscs.get_unchecked(insc_ptr);
             match insc {
                 Insc::MakeIntConst { c, dest_value } => {
-                    scope.set_value(*dest_value, Value::from(*c));
+                    cur_stack_slice.set_value(*dest_value, Value::from(*c));
                 },
                 Insc::IntAdd { lhs_value, rhs_value, dest_value } => {
-                    debug_assert_eq!(scope.get_value(*lhs_value).type_id(), TypeId::of::<i64>());
-                    debug_assert_eq!(scope.get_value(*rhs_value).type_id(), TypeId::of::<i64>());
-                    let lhs = scope.get_value(*lhs_value).value_typed_data.inner.int;
-                    let rhs = scope.get_value(*rhs_value).value_typed_data.inner.int;
+                    let lhs = cur_stack_slice.get_value(*lhs_value);
+                    let rhs = cur_stack_slice.get_value(*rhs_value);
+                    debug_assert_eq!(lhs.type_id(), TypeId::of::<i64>());
+                    debug_assert_eq!(rhs.type_id(), TypeId::of::<i64>());
+                    let lhs = lhs.value_typed_data.inner.int;
+                    let rhs = rhs.value_typed_data.inner.int;
                     let sum = lhs.wrapping_add(rhs);
-                    scope.set_value(*dest_value, Value::from(sum));
+                    cur_stack_slice.set_value(*dest_value, Value::from(sum));
                 },
                 Insc::IntSub { lhs_value, rhs_value, dest_value } => {
-                    debug_assert_eq!(scope.get_value(*lhs_value).type_id(), TypeId::of::<i64>());
-                    debug_assert_eq!(scope.get_value(*rhs_value).type_id(), TypeId::of::<i64>());
-                    let lhs = scope.get_value(*lhs_value).value_typed_data.inner.int;
-                    let rhs = scope.get_value(*rhs_value).value_typed_data.inner.int;
-                    let diff = lhs.wrapping_sub(rhs);
-                    scope.set_value(*dest_value, Value::from(diff));
+                    let lhs = cur_stack_slice.get_value(*lhs_value);
+                    let rhs = cur_stack_slice.get_value(*rhs_value);
+                    debug_assert_eq!(lhs.type_id(), TypeId::of::<i64>());
+                    debug_assert_eq!(rhs.type_id(), TypeId::of::<i64>());
+                    let lhs = lhs.value_typed_data.inner.int;
+                    let rhs = rhs.value_typed_data.inner.int;
+                    let sub = lhs.wrapping_sub(rhs);
+                    cur_stack_slice.set_value(*dest_value, Value::from(sub));
                 },
                 Insc::IntEq { lhs_value, rhs_value, dest_value } => {
-                    debug_assert_eq!(scope.get_value(*lhs_value).type_id(), TypeId::of::<i64>());
-                    debug_assert_eq!(scope.get_value(*rhs_value).type_id(), TypeId::of::<i64>());
-                    let lhs = scope.get_value(*lhs_value).value_typed_data.inner.int;
-                    let rhs = scope.get_value(*rhs_value).value_typed_data.inner.int;
-                    scope.set_value(*dest_value, Value::from(lhs == rhs));
+                    let lhs = cur_stack_slice.get_value(*lhs_value);
+                    let rhs = cur_stack_slice.get_value(*rhs_value);
+                    debug_assert_eq!(lhs.type_id(), TypeId::of::<i64>());
+                    debug_assert_eq!(rhs.type_id(), TypeId::of::<i64>());
+                    let lhs = lhs.value_typed_data.inner.int;
+                    let rhs = rhs.value_typed_data.inner.int;
+                    cur_stack_slice.set_value(*dest_value, Value::from(lhs == rhs));
                 },
                 Insc::IntGt { lhs_value, rhs_value, dest_value } => {
-                    debug_assert_eq!(scope.get_value(*lhs_value).type_id(), TypeId::of::<i64>());
-                    debug_assert_eq!(scope.get_value(*rhs_value).type_id(), TypeId::of::<i64>());
-                    let lhs = scope.get_value(*lhs_value).value_typed_data.inner.int;
-                    let rhs = scope.get_value(*rhs_value).value_typed_data.inner.int;
-                    scope.set_value(*dest_value, Value::from(lhs > rhs));
+                    let lhs = cur_stack_slice.get_value(*lhs_value);
+                    let rhs = cur_stack_slice.get_value(*rhs_value);
+                    debug_assert_eq!(lhs.type_id(), TypeId::of::<i64>());
+                    debug_assert_eq!(rhs.type_id(), TypeId::of::<i64>());
+                    let lhs = lhs.value_typed_data.inner.int;
+                    let rhs = rhs.value_typed_data.inner.int;
+                    cur_stack_slice.set_value(*dest_value, Value::from(lhs > rhs));
                 },
                 Insc::Incr { value } => {
-                    debug_assert_eq!(scope.get_value(*value).type_id(), TypeId::of::<i64>());
-                    let i = scope.get_value(*value).value_typed_data.inner.int;
-                    scope.set_value(*value, Value::from(i.wrapping_add(1)))
+                    let v = cur_stack_slice.get_value(*value);
+                    debug_assert_eq!(v.type_id(), TypeId::of::<i64>());
+                    let i = v.value_typed_data.inner.int;
+                    cur_stack_slice.set_value(*value, Value::from(i.wrapping_add(1)))
                 },
                 Insc::JumpIfTrue { cond_value, jump_dest } => {
-                    debug_assert_eq!(scope.get_value(*cond_value).type_id(), TypeId::of::<bool>());
-                    let cond = scope.get_value(*cond_value).value_typed_data.inner.boolean;
+                    let cv = cur_stack_slice.get_value(*cond_value);
+                    debug_assert_eq!(cv.type_id(), TypeId::of::<bool>());
+                    let cond = cv.value_typed_data.inner.boolean;
                     if cond {
                         insc_ptr = *jump_dest;
                         continue;
@@ -80,48 +99,39 @@ impl RD93 {
                     insc_ptr = *jump_dest;
                     continue;
                 },
-                Insc::FuncCall { func_id, arg_values, ret_value_dest: _ } => {
+                Insc::FuncCall { func_id, arg_values, ret_value_locs } => {
                     let func_info: CompiledFuncInfo = *program.funcs.get_unchecked(*func_id);
                     debug_assert_eq!(func_info.arg_count, arg_values.len());
 
-                    let mut new_scope = Scope::new(func_info.stack_size, insc_ptr);
-                    for (idx, value) in arg_values.iter().enumerate() {
-                        new_scope.set_value(idx, scope.get_value(*value));
-                    }
-                    scopes.push(new_scope);
-                    scope = scopes.last_mut().unwrap_unchecked();
+                    cur_stack_slice = stack.func_call_grow_stack(
+                        func_info.stack_size,
+                        arg_values,
+                        ret_value_locs,
+                        insc_ptr + 1
+                    );
                     insc_ptr = func_info.start_addr;
                     continue;
                 },
-                Insc::Return { ret_value } => {
-                    scope.ret_value_loc = *ret_value;
-                    insc_ptr = scope.ret_addr;
-
-                    let value = *scope.values.get_unchecked(scope.ret_value_loc);
-                    if scopes.len() == 1 {
-                        return value;
+                Insc::Return { ret_values } => {
+                    if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack(&ret_values) {
+                        insc_ptr = ret_addr;
+                        cur_stack_slice = prev_stack_slice;
+                        continue;
                     } else {
-                        insc = &program.inscs[insc_ptr];
-                        if let Insc::FuncCall {
-                            func_id: _,
-                            arg_values: _,
-                            ret_value_dest
-                        } = insc {
-                            scopes.pop().unwrap_unchecked();
-                            scope = scopes.last_mut().unwrap_unchecked();
-                            scope.set_value(*ret_value_dest, value);
-                        } else {
-                            core::hint::unreachable_unchecked();
+                        for (i, ret_value_loc) in ret_values.iter().enumerate() {
+                            outputs.get_unchecked_mut(i).write(cur_stack_slice.get_value(*ret_value_loc));
                         }
+                        return;
                     }
                 },
                 Insc::ReturnNothing => {
-                    insc_ptr = scope.ret_addr;
-                    if scopes.len() == 1 {
-                        return Value::null()
+                    if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack(&[]) {
+                        insc_ptr = ret_addr;
+                        cur_stack_slice = prev_stack_slice;
+                        continue;
                     } else {
-                        scopes.pop();
-                        scope = scopes.last_mut().unwrap_unchecked();
+                        debug_assert_eq!(outputs.len(), 0);
+                        return;
                     }
                 },
                 Insc::UnreachableInsc => panic!("this is an internal, unreachable insc"),
