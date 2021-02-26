@@ -11,7 +11,8 @@ pub enum Insc {
     JumpIfTrue { cond_value: usize, jump_dest: usize },
     Jump { jump_dest: usize },
     FuncCall { func_id: usize, arg_values: Vec<usize>, ret_value_locs: Vec<usize> },
-    Return { ret_values: Vec<usize> },
+    ReturnOne { ret_value: usize },
+    ReturnMultiple { ret_values: Vec<usize> },
     ReturnNothing,
     UnreachableInsc
 }

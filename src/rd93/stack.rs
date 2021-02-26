@@ -104,7 +104,7 @@ impl<'a> Stack<'a> {
         new_slice
     }
 
-    pub unsafe fn done_func_call_shrink_stack(
+    #[inline(never)] pub unsafe fn done_func_call_shrink_stack(
         &mut self,
         ret_values: &[usize]
     ) -> Option<(StackSlice, usize)> {
@@ -131,12 +131,5 @@ impl<'a> Stack<'a> {
         self.values.truncate(prev_frame.frame_end);
         self.frames.pop();
         Some((prev_slice, ret_addr))
-    }
-
-    pub unsafe fn top_slice(&mut self) -> StackSlice {
-        let frame = self.frames.last().unwrap_unchecked();
-        StackSlice(
-            &mut self.values[frame.frame_start..frame.frame_end] as *mut [MaybeUninit<Value>]
-        )
     }
 }

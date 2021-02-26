@@ -112,7 +112,7 @@ impl RD93 {
                     insc_ptr = func_info.start_addr;
                     continue;
                 },
-                Insc::Return { ret_values } => {
+                Insc::ReturnMultiple { ret_values } => {
                     if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack(&ret_values) {
                         insc_ptr = ret_addr;
                         cur_stack_slice = prev_stack_slice;
@@ -123,6 +123,9 @@ impl RD93 {
                         }
                         return;
                     }
+                },
+                Insc::ReturnOne { ret_value: _ } => {
+                    todo!("RETURN-ONE unimplemented yet")
                 },
                 Insc::ReturnNothing => {
                     if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack(&[]) {

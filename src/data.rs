@@ -211,19 +211,17 @@ pub union ValueTypedDataInner {
     /// 整数
     pub int: i64,
     /// 浮点数
-    pub(crate) float: f64,
+    pub float: f64,
     /// 字符
-    pub(crate) ch: char,
-    /// 字节
-    pub(crate) byte: u8,
+    pub ch: char,
     /// 布尔
-    pub(crate) boolean: bool
+    pub boolean: bool
 }
 
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub struct ValueTypedData {
-    #[allow(dead_code)]
-    pub(crate) tag: usize,
+    pub tag: usize,
     pub inner: ValueTypedDataInner
 }
 
@@ -232,9 +230,9 @@ pub struct ValueTypedData {
 #[repr(C)]
 pub union Value {
     /// 堆对象指针
-    pub(crate) ptr: *mut dyn DynBase,
+    pub ptr: *mut dyn DynBase,
     /// 堆对象指针的低层表示
-    pub(crate) ptr_inner: FatPointer,
+    pub ptr_inner: FatPointer,
     /// 值类型数据
     pub value_typed_data: ValueTypedData
 }
@@ -302,6 +300,7 @@ impl Value {
     #[inline] pub unsafe fn as_ref<T>(&self) -> &T {
         // TODO this is nasty
         debug_assert!(self.is_ptr());
+        // TODO this offset operation is for 64bit platform only
         if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
             let r = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut T);
             transmute::<&T, &T>(r.as_ref())

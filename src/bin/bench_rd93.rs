@@ -20,8 +20,8 @@ fn bench_fib35() {
         /*09*/ Insc::FuncCall { func_id: 0, arg_values: vec![2], ret_value_locs: vec![2] },
         /*10*/ Insc::FuncCall { func_id: 0, arg_values: vec![3], ret_value_locs: vec![3] },
         /*11*/ Insc::IntAdd { lhs_value: 2, rhs_value: 3, dest_value: 2 },
-        /*12*/ Insc::Return { ret_values: vec![2] },
-        /*13*/ Insc::Return { ret_values: vec![1] }
+        /*12*/ Insc::ReturnMultiple { ret_values: vec![2] },
+        /*13*/ Insc::ReturnMultiple { ret_values: vec![1] }
     ], vec![
         CompiledFuncInfo::new(0, 1, 1, 4),
     ]);
@@ -32,9 +32,9 @@ fn bench_fib35() {
             RD93::run_func(&program, 0, &[Value::from(35i64)], &mut ret_value);
         };
         let end_time = Instant::now();
-        unsafe {
-            eprintln!("fib(35) = {}", ret_value[0].assume_init().value_typed_data.inner.int);
-        }
+        // unsafe {
+        //     eprintln!("fib(35) = {}", ret_value[0].assume_init().value_typed_data.inner.int);
+        // }
         eprintln!("{} millis elapsed", (end_time - start_time).as_millis());
     }
 }
