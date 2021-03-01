@@ -2,8 +2,8 @@ use std::mem::MaybeUninit;
 use std::time::Instant;
 
 use t10::data::Value;
-use t10::rd93::RD93;
-use t10::rd93::insc::{CompiledFuncInfo, CompiledProgram, Insc};
+use t10::turbofan::rd93::RD93;
+use t10::turbofan::rd93::insc::{CompiledFuncInfo, CompiledProgram, Insc};
 
 fn bench_fib35() {
     let program = CompiledProgram::new(vec![
