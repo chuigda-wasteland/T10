@@ -2,15 +2,14 @@ use std::any::TypeId;
 use std::mem::MaybeUninit;
 
 use t10::data::Value;
-use t10::rd93::RD93;
-use t10::rd93::insc::{CompiledFuncInfo, CompiledProgram, Insc};
+use t10::turbofan::rd93::{CompiledFuncInfo, CompiledProgram, Insc, RD93};
 
 #[test]
 fn test_add_func() {
     let program = CompiledProgram::new(vec![
         // add(a int @%0, b int @%1) -> int
         Insc::IntAdd { lhs_value: 0, rhs_value: 1, dest_value: 0 },
-        Insc::ReturnMultiple { ret_values: vec![0] }
+        Insc::ReturnOne { ret_value: 0 }
     ], vec![
         CompiledFuncInfo::new(0, 2, 1, 2)
     ]);
@@ -35,11 +34,11 @@ fn test_func_call() {
         /*02*/ Insc::IntAdd { lhs_value: 0, rhs_value: 2, dest_value: 0 },
         /*03*/ Insc::IntAdd { lhs_value: 1, rhs_value: 3, dest_value: 1 },
         /*04*/ Insc::FuncCall { func_id: 1, arg_values: vec![0, 1], ret_value_locs: vec![0] },
-        /*05*/ Insc::ReturnMultiple { ret_values: vec![0] },
+        /*05*/ Insc::ReturnOne { ret_value: 0 },
 
         // add(a int @%0, b int @%1) -> int
         /*06*/ Insc::IntAdd { lhs_value: 0, rhs_value: 1, dest_value: 0 },
-        /*07*/ Insc::ReturnMultiple { ret_values: vec![0] }
+        /*07*/ Insc::ReturnOne { ret_value: 0 }
     ], vec![
         CompiledFuncInfo::new(0, 2, 1, 4), // entry
         CompiledFuncInfo::new(6, 2, 1, 2), // add
@@ -72,8 +71,8 @@ fn test_fibonacci() {
         /*09*/ Insc::FuncCall { func_id: 0, arg_values: vec![2], ret_value_locs: vec![2] },
         /*10*/ Insc::FuncCall { func_id: 0, arg_values: vec![3], ret_value_locs: vec![3] },
         /*11*/ Insc::IntAdd { lhs_value: 2, rhs_value: 3, dest_value: 2 },
-        /*12*/ Insc::ReturnMultiple { ret_values: vec![2] },
-        /*13*/ Insc::ReturnMultiple { ret_values: vec![1] }
+        /*12*/ Insc::ReturnOne { ret_value: 2 },
+        /*13*/ Insc::ReturnOne { ret_value: 1 }
     ], vec![
         CompiledFuncInfo::new(0, 1, 1, 4),
     ]);

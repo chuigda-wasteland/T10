@@ -104,7 +104,7 @@ impl<'a> Stack<'a> {
         new_slice
     }
 
-    #[inline(never)] pub unsafe fn done_func_call_shrink_stack(
+    pub unsafe fn done_func_call_shrink_stack(
         &mut self,
         ret_values: &[usize]
     ) -> Option<(StackSlice, usize)> {
@@ -129,7 +129,33 @@ impl<'a> Stack<'a> {
         }
         let ret_addr = this_frame.ret_addr;
         self.values.truncate(prev_frame.frame_end);
-        self.frames.pop();
+        self.frames.pop().unwrap_unchecked();
+        Some((prev_slice, ret_addr))
+    }
+
+    pub unsafe fn done_func_call_shrink_stack1(
+        &mut self,
+        ret_value: usize
+    ) -> Option<(StackSlice, usize)> {
+        let frame_count = self.frames.len();
+        if frame_count == 1 {
+            return None;
+        }
+
+        let this_frame: &FrameInfo = self.frames.get_unchecked(frame_count - 1);
+        let prev_frame: &FrameInfo = self.frames.get_unchecked(frame_count - 2);
+        debug_assert_eq!(prev_frame.frame_end, this_frame.frame_start);
+        let mut this_slice =
+            StackSlice(&mut self.values[this_frame.frame_start..this_frame.frame_end]);
+        let mut prev_slice =
+            StackSlice(&mut self.values[prev_frame.frame_start..prev_frame.frame_end]);
+
+        debug_assert_eq!(this_frame.ret_value_locs.len(), 1);
+        prev_slice.set_value(*this_frame.ret_value_locs.get_unchecked(0),
+                             this_slice.get_value(ret_value));
+        let ret_addr = this_frame.ret_addr;
+        self.values.truncate(prev_frame.frame_end);
+        self.frames.pop().unwrap_unchecked();
         Some((prev_slice, ret_addr))
     }
 }

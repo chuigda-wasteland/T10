@@ -46,3 +46,14 @@ impl CompiledProgram {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::turbofan::rd93::insc::Insc;
+
+    #[test]
+    fn print_insc_size() {
+        eprintln!("std::mem::size_of::<t10::turbofan::rd93::insc::Insc>() = {}",
+                  std::mem::size_of::<Insc>())
+    }
+}

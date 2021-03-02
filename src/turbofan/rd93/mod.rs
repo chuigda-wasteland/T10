@@ -1,14 +1,14 @@
 //! `rd93` 中实现了一个最小化、可运行的 VM，主要用作正式开发之前的 Benchmarking
 
+pub mod insc;
+
 use std::any::TypeId;
 use std::mem::MaybeUninit;
-
-use insc::{CompiledFuncInfo, CompiledProgram, Insc};
 
 use crate::data::Value;
 use crate::turbofan::stack::Stack;
 
-pub mod insc;
+pub use insc::{CompiledFuncInfo, CompiledProgram, Insc};
 
 pub struct RD93 ();
 
@@ -19,7 +19,11 @@ impl RD93 {
         args: &[Value],
         outputs: &mut [MaybeUninit<Value>]
     ) {
+        #[cfg(not(debug_assertions))]
+        let func_info: CompiledFuncInfo = *program.funcs.get_unchecked(func_id);
+        #[cfg(debug_assertions)]
         let func_info: CompiledFuncInfo = program.funcs[func_id];
+
         let dummy_ret_locs = [];
         debug_assert_eq!(args.len(), func_info.arg_count);
         debug_assert_eq!(outputs.len(), func_info.ret_count);
@@ -99,7 +103,10 @@ impl RD93 {
                     continue;
                 },
                 Insc::FuncCall { func_id, arg_values, ret_value_locs } => {
+                    #[cfg(not(debug_assertions))]
                     let func_info: CompiledFuncInfo = *program.funcs.get_unchecked(*func_id);
+                    #[cfg(debug_assertions)]
+                    let func_info: CompiledFuncInfo = program.funcs[*func_id];
                     debug_assert_eq!(func_info.arg_count, arg_values.len());
 
                     cur_stack_slice = stack.func_call_grow_stack(
@@ -123,8 +130,16 @@ impl RD93 {
                         return;
                     }
                 },
-                Insc::ReturnOne { ret_value: _ } => {
-                    todo!("RETURN-ONE unimplemented yet")
+                Insc::ReturnOne { ret_value } => {
+                    if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack1(*ret_value) {
+                        insc_ptr = ret_addr;
+                        cur_stack_slice = prev_stack_slice;
+                        continue;
+                    } else {
+                        debug_assert_eq!(outputs.len(), 1);
+                        outputs.get_unchecked_mut(0).write(cur_stack_slice.get_value(*ret_value));
+                        return;
+                    }
                 },
                 Insc::ReturnNothing => {
                     if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack(&[]) {

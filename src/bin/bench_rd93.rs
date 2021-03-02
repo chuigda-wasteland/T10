@@ -2,8 +2,7 @@ use std::mem::MaybeUninit;
 use std::time::Instant;
 
 use t10::data::Value;
-use t10::turbofan::rd93::RD93;
-use t10::turbofan::rd93::insc::{CompiledFuncInfo, CompiledProgram, Insc};
+use t10::turbofan::rd93::{CompiledFuncInfo, CompiledProgram, Insc, RD93};
 
 fn bench_fib35() {
     let program = CompiledProgram::new(vec![
@@ -20,8 +19,8 @@ fn bench_fib35() {
         /*09*/ Insc::FuncCall { func_id: 0, arg_values: vec![2], ret_value_locs: vec![2] },
         /*10*/ Insc::FuncCall { func_id: 0, arg_values: vec![3], ret_value_locs: vec![3] },
         /*11*/ Insc::IntAdd { lhs_value: 2, rhs_value: 3, dest_value: 2 },
-        /*12*/ Insc::ReturnMultiple { ret_values: vec![2] },
-        /*13*/ Insc::ReturnMultiple { ret_values: vec![1] }
+        /*12*/ Insc::ReturnOne { ret_value: 2 },
+        /*13*/ Insc::ReturnOne { ret_value: 1 }
     ], vec![
         CompiledFuncInfo::new(0, 1, 1, 4),
     ]);
