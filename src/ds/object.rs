@@ -28,7 +28,7 @@ impl DynamicObject {
     }
 
     pub fn get_field<T>(&self, _name: &str) -> Result<T, TError>
-        where Void: for<'a> FromValue<'a, T>,
+        where Void: FromValue<T>,
               Void: Fusion<T>
     {
         unimplemented!()

@@ -16,6 +16,13 @@ impl StackSlice {
         self.0.as_ref().unwrap_unchecked().get_unchecked(idx).assume_init_read()
     }
 
+    #[cfg(not(debug_assertions))]
+    pub unsafe fn get_value_mut<'a>(&mut self, idx: usize) -> &'a mut MaybeUninit<Value> {
+        std::mem::transmute::<&mut _, &'a mut _>(
+            self.0.as_mut().unwrap_unchecked().get_unchecked_mut(idx)
+        )
+    }
+
     #[cfg(debug_assertions)]
     pub unsafe fn set_value(&mut self, idx: usize, value: Value) {
         self.0.as_mut().unwrap_unchecked()[idx].write(value);
@@ -24,6 +31,11 @@ impl StackSlice {
     #[cfg(debug_assertions)]
     pub unsafe fn get_value(&mut self, idx: usize) -> Value {
         self.0.as_ref().unwrap_unchecked()[idx].assume_init_read()
+    }
+
+    #[cfg(debug_assertions)]
+    pub unsafe fn get_value_mut<'a>(&mut self, idx: usize) -> &'a mut MaybeUninit<Value> {
+        std::mem::transmute::<&mut _, &'a mut _>(&mut self.0.as_mut().unwrap_unchecked()[idx])
     }
 }
 

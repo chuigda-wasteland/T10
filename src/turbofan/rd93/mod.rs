@@ -38,6 +38,8 @@ impl RD93 {
         for (idx, arg) in args.iter().enumerate() {
             cur_stack_slice.set_value(idx, *arg);
         }
+        let mut ffi_args = Vec::with_capacity(8);
+        let mut ffi_rets = Vec::with_capacity(3);
 
         loop {
             let insc: &Insc = program.inscs.get_unchecked(insc_ptr);
@@ -117,6 +119,29 @@ impl RD93 {
                     );
                     insc_ptr = func_info.start_addr;
                     continue;
+                },
+                Insc::FFICall { func_id, arg_values, ret_value_locs } => {
+                    #[cfg(not(debug_assertions))]
+                    let ffi_func = program.ffi_funcs.get_unchecked(*func_id);
+                    #[cfg(debug_assertions)]
+                    let ffi_func = &program.ffi_funcs[*func_id];
+
+                    for arg_value in arg_values {
+                        ffi_args.push(cur_stack_slice.get_value(*arg_value));
+                    }
+
+                    for ret_value_loc in ret_value_locs {
+                        ffi_rets.push(cur_stack_slice.get_value_mut(*ret_value_loc));
+                    }
+
+                    match ffi_func.call_prechecked(&ffi_args, &mut ffi_rets[..]) {
+                        Ok(()) => {},
+                        // TODO support exception handling
+                        Err(e) => panic!("exception: ".to_string() + &e.to_string())
+                    }
+
+                    ffi_args.clear();
+                    ffi_rets.clear();
                 },
                 Insc::ReturnMultiple { ret_values } => {
                     if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack(&ret_values) {

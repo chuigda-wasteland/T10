@@ -3,12 +3,14 @@
 
 extern crate test;
 
-use test::Bencher;
-
-use t10::func::{RustFunction, RustCallable};
-use t10::data::{StaticWrapper, DynBase, Value};
 use std::marker::PhantomData;
 use std::intrinsics::volatile_load;
+use std::mem::MaybeUninit;
+
+use test::Bencher;
+
+use t10::data::{StaticWrapper, DynBase, Value};
+use t10::func::{RustCallable, RustFunction};
 
 struct S(i32);
 
@@ -28,11 +30,14 @@ fn bench_simple_call(b: &mut Bencher) {
     let v2 = Value::from(s2);
     let f = RustFunction { f: bar, _phantom: PhantomData::default() };
 
+    let mut dest = MaybeUninit::uninit();
+    let mut dest_value_ref = [&mut dest];
+
     b.iter(|| {
         unsafe {
             for _ in 0..1000 {
                 for _ in 0..1000 {
-                    let _x = f.call_prechecked(&[v1, v2]).unwrap().value_typed_data.inner.int;
+                    f.call_prechecked(&[v1, v2], &mut dest_value_ref).unwrap();
                 }
             }
         }
@@ -60,13 +65,15 @@ fn bench_rust_call(b: &mut Bencher) {
 #[bench]
 fn bench_simple_call2(b: &mut Bencher) {
     let f = RustFunction { f: baz, _phantom: PhantomData::default() };
+    let mut dest = MaybeUninit::uninit();
+    let mut dest_value_ref = [&mut dest];
     b.iter(|| {
         for i in 0..1000i64 {
             for j in 0..1000i64 {
                 let v1 = Value::from(i);
                 let v2 = Value::from(j);
                 unsafe {
-                    let _x = f.call_prechecked(&[v1, v2]).unwrap().value_typed_data.inner.int;
+                    f.call_prechecked(&[v1, v2], &mut dest_value_ref).unwrap();
                 }
             }
         }
