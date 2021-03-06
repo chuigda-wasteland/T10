@@ -11,12 +11,11 @@ const BENCH_RUNS: i32 = 10;
 #[cfg(debug_assertions)]
 const BENCH_RUNS: i32 = 1;
 
-fn bench(program: &CompiledProgram) {
+fn bench(program: &CompiledProgram, args: &[Value], outputs: &mut [MaybeUninit<Value>]) {
     for _ in 0..BENCH_RUNS {
         let start_time = Instant::now();
-        let mut ret_value = vec![MaybeUninit::uninit()];
         unsafe {
-            RD93::run_func(&program, 0, &[Value::from(35i64)], &mut ret_value);
+            RD93::run_func(&program, 0, args, outputs);
         };
         let end_time = Instant::now();
         eprintln!("{} millis elapsed", (end_time - start_time).as_millis());
@@ -43,7 +42,7 @@ fn bench_fib35() {
     ], vec![
         CompiledFuncInfo::new(0, 1, 1, 4),
     ], vec![]);
-    bench(&program);
+    bench(&program, &[Value::from(35i64)], &mut [MaybeUninit::uninit()]);
 }
 
 fn bench_loop100m() {
@@ -65,7 +64,7 @@ fn bench_loop100m() {
     ], vec![
         CompiledFuncInfo::new(0, 0, 0, 4)
     ], vec![]);
-    bench(&program);
+    bench(&program, &[], &mut []);
 }
 
 fn baz(x: i64, y: i64) -> i64 {
@@ -93,7 +92,7 @@ fn bench_ffi100m() {
     ], vec![
         Box::new(RustFunction { f: baz, _phantom: PhantomData::default() })
     ]);
-    bench(&program);
+    bench(&program, &[], &mut []);
 }
 
 fn main() {
