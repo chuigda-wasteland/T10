@@ -12,7 +12,7 @@ fn test_add_func() {
         Insc::ReturnOne { ret_value: 0 }
     ], vec![
         CompiledFuncInfo::new(0, 2, 1, 2)
-    ]);
+    ], vec![]);
 
     let mut ret_values = vec![MaybeUninit::uninit()];
     unsafe {
@@ -42,7 +42,7 @@ fn test_func_call() {
     ], vec![
         CompiledFuncInfo::new(0, 2, 1, 4), // entry
         CompiledFuncInfo::new(6, 2, 1, 2), // add
-    ]);
+    ], vec![]);
 
     let mut ret_values = vec![MaybeUninit::uninit()];
     unsafe {
@@ -75,7 +75,7 @@ fn test_fibonacci() {
         /*13*/ Insc::ReturnOne { ret_value: 1 }
     ], vec![
         CompiledFuncInfo::new(0, 1, 1, 4),
-    ]);
+    ], vec![]);
 
     let mut ret_values = vec![MaybeUninit::uninit()];
     unsafe {
