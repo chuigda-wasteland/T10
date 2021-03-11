@@ -27,8 +27,8 @@ pub fn vec_type_name(vt: *const CustomVTable) -> String {
     }
 }
 
-pub fn vec_tyck(vt: *const CustomVTable, tyck_info: &TypeCheckInfo) -> bool {
-
+pub fn vec_tyck(_vt: *const CustomVTable, _tyck_info: &TypeCheckInfo) -> bool {
+    unimplemented!()
 }
 
 #[repr(C)]
@@ -61,5 +61,11 @@ impl<T> VMVec<T> {
             inner: VMGenericVec::new(),
             _phantom: PhantomData::default()
         }
+    }
+}
+
+impl<T: 'static> VMVec<T> {
+    pub fn push(&mut self, _t: T) {
+        todo!()
     }
 }
