@@ -130,7 +130,7 @@ pub trait DynBase {
     /// 获取类型 ID
     fn dyn_type_id(&self) -> std::any::TypeId;
     /// 获取类型名
-    fn dyn_type_name(&self) -> &'static str;
+    fn dyn_type_name(&self) -> String;
     /// 运行时类型检测
     fn dyn_tyck(&self, tyck_info: &TypeCheckInfo) -> bool;
     /// 运行时获取类型检查信息
@@ -152,8 +152,8 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
         TypeId::of::<Ts>()
     }
 
-    fn dyn_type_name(&self) -> &'static str {
-        type_name::<Ta>()
+    fn dyn_type_name(&self) -> String {
+        type_name::<Ta>().to_string()
     }
 
     fn dyn_tyck(&self, tyck_info: &TypeCheckInfo) -> bool {
@@ -181,29 +181,35 @@ impl<'a, Ta: 'a, Ts: 'static> DynBase for Wrapper<'a, Ta, Ts> {
 
 /// “值类型对象”的类型标记
 #[derive(Copy, Clone)]
+#[repr(u8)]
 pub enum ValueType {
-    Int     = 0b00000010,
-    Float   = 0b00000100,
-    Char    = 0b00000110,
-    Bool    = 0b00001000,
-    AnyType = 0b00001010,
+    Int     = 0b00000100,
+    Float   = 0b00001000,
+    Char    = 0b00001100,
+    Bool    = 0b00010000,
+    AnyType = 0b00010100,
 }
 
 impl From<u8> for ValueType {
     fn from(src: u8) -> Self {
+        #[cfg(not(debug_assertions))]
+        unsafe { transmute(src) }
+
+        #[cfg(debug_assertions)]
         match src {
-            0b00000010 => ValueType::Int,
-            0b00000100 => ValueType::Float,
-            0b00000110 => ValueType::Char,
-            0b00001000 => ValueType::Bool,
-            0b00001010 => ValueType::AnyType,
+            0b00000100 => ValueType::Int,
+            0b00001000 => ValueType::Float,
+            0b00001100 => ValueType::Char,
+            0b00010000 => ValueType::Bool,
+            0b00010100 => ValueType::AnyType,
             _ => unreachable!("invalid ValueType")
         }
     }
 }
 
 pub(crate) const VALUE_MASK      : u8 = 0b00000001;
-pub(crate) const VALUE_TYPE_MASK : u8 = 0b00001110;
+pub(crate) const CONTAINER_MASK  : u8 = 0b00000010;
+pub(crate) const VALUE_TYPE_MASK : u8 = 0b00011100;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -225,6 +231,27 @@ pub struct ValueTypedData {
     pub inner: ValueTypedDataInner
 }
 
+#[repr(C, align(8))]
+pub struct CustomVTable {
+    pub dyn_type_id: fn(*const CustomVTable) -> std::any::TypeId,
+    pub dyn_type_name: fn(*const CustomVTable) -> String,
+    pub dyn_tyck: fn(*const CustomVTable, &TypeCheckInfo) -> bool,
+    pub dyn_tyck_info: fn(*const CustomVTable) -> TypeCheckInfo,
+
+    #[cfg(not(debug_assertions))]
+    pub move_out: unsafe fn (*mut (), *const CustomVTable, *mut ()),
+
+    #[cfg(debug_assertions)]
+    pub move_out_ck: unsafe fn (*mut (), *const CustomVTable, *mut (), std::any::TypeId),
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct CustomFatPtr {
+    data: *mut (),
+    vtable: *const CustomVTable
+}
+
 /// 一个通用的“值”
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -234,7 +261,9 @@ pub union Value {
     /// 堆对象指针的低层表示
     pub ptr_inner: FatPointer,
     /// 值类型数据
-    pub value_typed_data: ValueTypedData
+    pub value_typed_data: ValueTypedData,
+    /// 自定义胖指针，用于处理容器类型
+    pub custom_fat_ptr: CustomFatPtr
 }
 
 impl Value {
@@ -274,6 +303,9 @@ impl Value {
                 ValueType::Bool => TypeId::of::<bool>(),
                 ValueType::AnyType => todo!("What data type should we use for this?")
             }
+        } else if self.ptr_inner.part1 as u8 & CONTAINER_MASK != 0 {
+            let f = (*self.custom_fat_ptr.vtable).dyn_type_id;
+            f(self.custom_fat_ptr.vtable)
         } else {
             self.ptr.as_ref().unwrap_unchecked().dyn_type_id()
         }
@@ -297,30 +329,30 @@ impl Value {
         }
     }
 
-    #[inline] pub unsafe fn as_ref<T>(&self) -> &T {
+    #[inline] pub unsafe fn as_ref<'a, T>(&self) -> &'a T {
         // TODO this is nasty
         debug_assert!(self.is_ptr());
         // TODO this offset operation is for 64bit platform only
         if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
             let r = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut T);
-            transmute::<&T, &T>(r.as_ref())
+            transmute::<&T, &'a T>(r.as_ref())
         } else {
             let rr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut *mut T);
             let r = NonNull::new_unchecked(*rr.as_ref());
-            transmute::<&T, &T>(r.as_ref())
+            transmute::<&T, &'a T>(r.as_ref())
         }
     }
 
-    #[inline] pub unsafe fn as_mut<T>(&self) -> &mut T {
+    #[inline] pub unsafe fn as_mut<'a, T>(&self) -> &'a mut T {
         // TODO this is nasty
         debug_assert!(self.is_ptr());
         if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
             let mut mr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut T);
-            transmute::<&mut T, &mut T>(mr.as_mut())
+            transmute::<&mut T, &'a mut T>(mr.as_mut())
         } else {
             let rmr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut *mut T);
             let mut mr = NonNull::new_unchecked(*rmr.as_ref());
-            transmute::<&mut T, &mut T>(mr.as_mut())
+            transmute::<&mut T, &'a mut T>(mr.as_mut())
         }
     }
 }

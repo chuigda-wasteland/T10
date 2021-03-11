@@ -4,7 +4,7 @@
 use crate::func::RustCallable;
 
 pub enum Insc {
-    MakeIntConst{ c: i64, dest_value: usize },
+    MakeIntConst { c: i64, dest_value: usize },
     IntAdd { lhs_value: usize, rhs_value: usize, dest_value: usize },
     IntSub { lhs_value: usize, rhs_value: usize, dest_value: usize },
     IntEq { lhs_value: usize, rhs_value: usize, dest_value: usize },
