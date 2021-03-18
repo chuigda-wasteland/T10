@@ -35,7 +35,7 @@ impl Default for OxTank {
     }
 }
 
-impl OxProvider for OxTank {
+impl OxProvider<'_> for OxTank {
     fn allocate<T>(&mut self, _t: T) -> StaticWrapper<T> {
         unimplemented!()
     }

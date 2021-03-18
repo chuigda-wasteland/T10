@@ -44,7 +44,7 @@ impl<'a> RampedIntake<'a> {
 
             collect_enabled: false,
             debt: 0,
-            debt_bytes: usize
+            debt_bytes: 0
         }
     }
 }
