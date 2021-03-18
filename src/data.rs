@@ -62,39 +62,49 @@ union WrapperData<T> {
 #[repr(C, align(8))]
 pub struct Wrapper<'a, Ta: 'a, Ts: 'static> {
     gc_info: u8,
+    data_offset: u8,
     data: WrapperData<Ta>,
     _phantom: PhantomData<&'a Ts>
 }
 
 impl<'a, Ta: 'a, Ts: 'static> Wrapper<'a, Ta, Ts> {
     pub fn owned(data: Ta) -> Self {
-        Self {
+        let mut r = Self {
             data: WrapperData {
                 value: ManuallyDrop::new(MaybeUninit::new(data))
             },
+            data_offset: 0,
             gc_info: GcInfo::Owned as u8,
             _phantom: PhantomData::default()
-        }
+        };
+        r.data_offset = (&r.data as *const _ as *const () as usize - &r as *const _ as *const () as usize) as u8;
+        r
     }
 
     pub fn shared(data: &Ta) -> Self {
-        Self {
+        let mut r = Self {
             data: WrapperData {
                 ptr: unsafe { NonNull::new_unchecked(data as *const Ta as *mut Ta) }
             },
+            data_offset: 0,
             gc_info: GcInfo::SharedFromHost as u8,
             _phantom: PhantomData::default()
-        }
+        };
+        r.data_offset = (&r.data as *const _ as *const () as usize - &r as *const _ as *const () as usize) as u8;
+        r
     }
 
     pub fn mut_shared(data: &mut Ta) -> Self {
-        Self {
+        let mut r = Self {
             data: WrapperData {
                 ptr: unsafe { NonNull::new_unchecked(data as *mut Ta) }
             },
+            data_offset: 0,
             gc_info: GcInfo::MutSharedFromHost as u8,
             _phantom: PhantomData::default()
-        }
+        };
+        r.data_offset = (&r.data as *const _ as *const () as usize - &r as *const _ as *const () as usize) as u8;
+        r
     }
 
     #[inline] pub unsafe fn borrow_value(&self) -> NonNull<()> {
@@ -334,10 +344,12 @@ impl Value {
         debug_assert!(self.is_ptr());
         // TODO this offset operation is for 64bit platform only
         if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
-            let r = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut T);
+            let offset = *(self.ptr as *mut u8).offset(1);
+            let r = NonNull::new_unchecked((self.ptr as *mut u8).offset(offset as isize) as *mut T);
             transmute::<&T, &'a T>(r.as_ref())
         } else {
-            let rr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut *mut T);
+            let offset = *(self.ptr as *mut u8).offset(1);
+            let rr = NonNull::new_unchecked((self.ptr as *mut u8).offset(offset as isize) as *mut *mut T);
             let r = NonNull::new_unchecked(*rr.as_ref());
             transmute::<&T, &'a T>(r.as_ref())
         }
@@ -347,10 +359,12 @@ impl Value {
         // TODO this is nasty
         debug_assert!(self.is_ptr());
         if self.gc_info() as u8 & GCINFO_OWNED_MASK != 0 {
-            let mut mr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut T);
+            let offset = *(self.ptr as *mut u8).offset(1);
+            let mut mr = NonNull::new_unchecked((self.ptr as *mut u8).offset(offset as isize) as *mut T);
             transmute::<&mut T, &'a mut T>(mr.as_mut())
         } else {
-            let rmr = NonNull::new_unchecked((self.ptr as *mut u8).offset(8) as *mut *mut T);
+            let offset = *(self.ptr as *mut u8).offset(1);
+            let rmr = NonNull::new_unchecked((self.ptr as *mut u8).offset(offset as isize) as *mut *mut T);
             let mut mr = NonNull::new_unchecked(*rmr.as_ref());
             transmute::<&mut T, &'a mut T>(mr.as_mut())
         }
