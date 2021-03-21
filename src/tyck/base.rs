@@ -27,15 +27,15 @@ trait StaticBaseImpl<T> {
 }
 
 impl<T: 'static> StaticBase<T> for Void {
-    #[inline] default fn base_type_id() -> TypeId {
+    #[inline] fn base_type_id() -> TypeId {
         TypeId::of::<T>()
     }
 
-    #[inline] default fn tyck_info() -> TypeCheckInfo {
+    #[inline] fn tyck_info() -> TypeCheckInfo {
         TypeCheckInfo::SimpleType(TypeId::of::<T>())
     }
 
-    #[inline] default fn tyck(tyck_info: &TypeCheckInfo) -> bool {
+    #[inline] fn tyck(tyck_info: &TypeCheckInfo) -> bool {
         if let TypeCheckInfo::SimpleType(tid) = tyck_info {
             *tid == TypeId::of::<T>()
         } else {
@@ -43,7 +43,7 @@ impl<T: 'static> StaticBase<T> for Void {
         }
     }
 
-    #[inline] default fn ffi_action() -> FFIAction {
+    #[inline] fn ffi_action() -> FFIAction {
         <Void as StaticBaseImpl<T>>::ffi_action_impl()
     }
 }
