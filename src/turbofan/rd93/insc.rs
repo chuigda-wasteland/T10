@@ -4,32 +4,32 @@
 use crate::func::RustCallable;
 
 pub enum Insc {
-    MakeIntConst { c: i64, dest_value: usize },
-    IntAdd { lhs_value: usize, rhs_value: usize, dest_value: usize },
-    IntSub { lhs_value: usize, rhs_value: usize, dest_value: usize },
-    IntEq { lhs_value: usize, rhs_value: usize, dest_value: usize },
-    IntGt { lhs_value: usize, rhs_value: usize, dest_value: usize },
-    Incr { value: usize },
-    JumpIfTrue { cond_value: usize, jump_dest: usize },
-    Jump { jump_dest: usize },
-    FuncCall { func_id: usize, arg_values: Vec<usize>, ret_value_locs: Vec<usize> },
-    FFICall { func_id: usize, arg_values: Vec<usize>, ret_value_locs: Vec<usize> },
-    ReturnOne { ret_value: usize },
-    ReturnMultiple { ret_values: Vec<usize> },
+    MakeIntConst { c: i64, dest_value: u32 },
+    IntAdd { lhs_value: u32, rhs_value: u32, dest_value: u32 },
+    IntSub { lhs_value: u32, rhs_value: u32, dest_value: u32 },
+    IntEq { lhs_value: u32, rhs_value: u32, dest_value: u32 },
+    IntGt { lhs_value: u32, rhs_value: u32, dest_value: u32 },
+    Incr { value: u32 },
+    JumpIfTrue { cond_value: u32, jump_dest: u32 },
+    Jump { jump_dest: u32 },
+    FuncCall { func_id: u32, arg_values: Vec<u32>, ret_value_locs: Vec<u32> },
+    FFICall { func_id: u32, arg_values: Vec<u32>, ret_value_locs: Vec<u32> },
+    ReturnOne { ret_value: u32 },
+    ReturnMultiple { ret_values: Vec<u32> },
     ReturnNothing,
     UnreachableInsc
 }
 
 #[derive(Copy, Clone)]
 pub struct CompiledFuncInfo {
-    pub start_addr: usize,
-    pub arg_count: usize,
-    pub ret_count: usize,
-    pub stack_size: usize,
+    pub start_addr: u32,
+    pub arg_count: u32,
+    pub ret_count: u32,
+    pub stack_size: u32,
 }
 
 impl CompiledFuncInfo {
-    pub fn new(start_addr: usize, arg_count: usize, ret_count: usize, stack_size: usize) -> Self {
+    pub fn new(start_addr: u32, arg_count: u32, ret_count: u32, stack_size: u32) -> Self {
         Self {
             start_addr, arg_count, ret_count, stack_size
         }

@@ -19,7 +19,6 @@ pub struct Operand<T: VMValueTyped> {
     data: OpData<T>
 }
 
-/*
 pub enum Insc {
     MakeIntConst{ c: i64, dest_value: usize },
     IntAdd { lhs_value: usize, rhs_value: usize, dest_value: usize },
@@ -34,12 +33,6 @@ pub enum Insc {
     ReturnMultiple { ret_values: Vec<usize> },
     ReturnNothing,
     UnreachableInsc
-}
-*/
-
-pub enum Insc {
-    IntAdd { lhs: Operand<i64>, rhs: Operand<i64>, dest_value: usize },
-    IntSub { lhs: Operand<i64>, rhs: Operand<i64>, dest_value: usize }
 }
 
 #[cfg(test)]

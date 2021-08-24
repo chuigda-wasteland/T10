@@ -25,10 +25,10 @@ impl RD93 {
         let func_info: CompiledFuncInfo = program.funcs[func_id];
 
         let dummy_ret_locs = [];
-        debug_assert_eq!(args.len(), func_info.arg_count);
-        debug_assert_eq!(outputs.len(), func_info.ret_count);
+        debug_assert_eq!(args.len() as u32, func_info.arg_count);
+        debug_assert_eq!(outputs.len() as u32, func_info.ret_count);
 
-        let mut insc_ptr = func_info.start_addr;
+        let mut insc_ptr = func_info.start_addr as usize;
         let mut stack = Stack::new();
         let mut cur_stack_slice = stack.ext_func_call_grow_stack(
             func_info.stack_size,
@@ -36,7 +36,7 @@ impl RD93 {
             &dummy_ret_locs
         );
         for (idx, arg) in args.iter().enumerate() {
-            cur_stack_slice.set_value(idx, *arg);
+            cur_stack_slice.set_value(idx as u32, *arg);
         }
         let mut ffi_args = Vec::with_capacity(8);
         let mut ffi_rets = Vec::with_capacity(3);
@@ -96,35 +96,35 @@ impl RD93 {
                     debug_assert_eq!(cv.type_id(), TypeId::of::<bool>());
                     let cond = cv.value_typed_data.inner.boolean;
                     if cond {
-                        insc_ptr = *jump_dest;
+                        insc_ptr = *jump_dest as usize;
                         continue;
                     }
                 },
                 Insc::Jump { jump_dest } => {
-                    insc_ptr = *jump_dest;
+                    insc_ptr = *jump_dest as usize;
                     continue;
                 },
                 Insc::FuncCall { func_id, arg_values, ret_value_locs } => {
                     #[cfg(not(debug_assertions))]
-                    let func_info: CompiledFuncInfo = *program.funcs.get_unchecked(*func_id);
+                    let func_info = *program.funcs.get_unchecked(*func_id as usize);
                     #[cfg(debug_assertions)]
-                    let func_info: CompiledFuncInfo = program.funcs[*func_id];
-                    debug_assert_eq!(func_info.arg_count, arg_values.len());
+                    let func_info = program.funcs[*func_id as usize];
+                    debug_assert_eq!(func_info.arg_count, arg_values.len() as u32);
 
                     cur_stack_slice = stack.func_call_grow_stack(
                         func_info.stack_size,
                         arg_values,
                         ret_value_locs,
-                        insc_ptr + 1
+                        (insc_ptr as u32) + 1
                     );
-                    insc_ptr = func_info.start_addr;
+                    insc_ptr = func_info.start_addr as usize;
                     continue;
                 },
                 Insc::FFICall { func_id, arg_values, ret_value_locs } => {
                     #[cfg(not(debug_assertions))]
-                    let ffi_func = program.ffi_funcs.get_unchecked(*func_id);
+                    let ffi_func = program.ffi_funcs.get_unchecked(*func_id as usize);
                     #[cfg(debug_assertions)]
-                    let ffi_func = &program.ffi_funcs[*func_id];
+                    let ffi_func = &program.ffi_funcs[*func_id as usize];
 
                     for arg_value in arg_values {
                         ffi_args.push(cur_stack_slice.get_value(*arg_value));
@@ -137,7 +137,7 @@ impl RD93 {
                     match ffi_func.call_prechecked(&ffi_args, &mut ffi_rets[..]) {
                         Ok(()) => {},
                         // TODO support exception handling
-                        Err(e) => panic!("exception: ".to_string() + &e.to_string())
+                        Err(e) => panic!("{}", "exception: ".to_string() + &e.to_string())
                     }
 
                     ffi_args.clear();
@@ -145,7 +145,7 @@ impl RD93 {
                 },
                 Insc::ReturnMultiple { ret_values } => {
                     if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack(&ret_values) {
-                        insc_ptr = ret_addr;
+                        insc_ptr = ret_addr as usize;
                         cur_stack_slice = prev_stack_slice;
                         continue;
                     } else {
@@ -157,7 +157,7 @@ impl RD93 {
                 },
                 Insc::ReturnOne { ret_value } => {
                     if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack1(*ret_value) {
-                        insc_ptr = ret_addr;
+                        insc_ptr = ret_addr as usize;
                         cur_stack_slice = prev_stack_slice;
                         continue;
                     } else {
@@ -168,7 +168,7 @@ impl RD93 {
                 },
                 Insc::ReturnNothing => {
                     if let Some((prev_stack_slice, ret_addr)) = stack.done_func_call_shrink_stack(&[]) {
-                        insc_ptr = ret_addr;
+                        insc_ptr = ret_addr as usize;
                         cur_stack_slice = prev_stack_slice;
                         continue;
                     } else {
