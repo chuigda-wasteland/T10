@@ -4,4 +4,4 @@
 ![Don't use](https://img.shields.io/badge/dont-use-critical)
 
 # Moved
-All develop work have been moved to [Pr47/Pr47](https://github.com/Pr47/Pr47)
+All develop work have been moved to [Pr47/Pr47](https://github.com/Pr47/Pr47). Several experiments might be carried out in this repository.
