@@ -1,4 +1,5 @@
 use crate::func::RustCallable;
+use crate::turbofan::r15_300::aligned_bytes::AlignedBytes;
 
 #[repr(u8)]
 pub enum OpCode {
@@ -61,7 +62,17 @@ impl CompiledFuncInfo {
 }
 
 pub struct CompiledProgram {
-
+    inscs: AlignedBytes,
+    funcs: Vec<CompiledFuncInfo>,
+    ffi_funcs: Vec<Box<dyn RustCallable>>
 }
 
-
+impl CompiledProgram {
+    pub fn new(
+        inscs: AlignedBytes,
+        funcs: Vec<CompiledFuncInfo>,
+        ffi_funcs: Vec<Box<dyn RustCallable>>
+    ) -> Self {
+        Self { inscs, funcs, ffi_funcs }
+    }
+}
