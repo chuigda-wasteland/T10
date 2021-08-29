@@ -91,6 +91,14 @@ impl AlignedBytes {
         self.len += 1;
     }
 
+    #[inline] pub unsafe fn push_zero_bytes(&mut self, count: usize) {
+        debug_assert!(count <= 8);
+        if self.raw.cap - self.len < count {
+            self.raw.extend2();
+        }
+        std::ptr::write_bytes(self.raw.ptr.as_ptr().offset(self.len as isize), 0, count);
+    }
+
     #[inline] pub fn push_u32(&mut self, dword: u32) {
         if self.raw.cap - self.len < 4 {
             unsafe { self.raw.extend2(); }

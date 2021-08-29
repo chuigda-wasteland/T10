@@ -7,7 +7,7 @@ pub enum OpCode {
     // IP = IP +16
     MakeIntConst = 1,
 
-    // [OP:1] [PAD:3] [DEST:4] [SRC:4] [PAD:4]
+    // [OP:1] [PAD:3] [DEST:4] [SRC1:4] [SRC2:4]
     // IP = IP +16
     IntAdd = 2,
     IntSub = 3,
@@ -62,9 +62,9 @@ impl CompiledFuncInfo {
 }
 
 pub struct CompiledProgram {
-    inscs: AlignedBytes,
-    funcs: Vec<CompiledFuncInfo>,
-    ffi_funcs: Vec<Box<dyn RustCallable>>
+    pub inscs: AlignedBytes,
+    pub funcs: Vec<CompiledFuncInfo>,
+    pub ffi_funcs: Vec<Box<dyn RustCallable>>
 }
 
 impl CompiledProgram {
