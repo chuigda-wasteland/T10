@@ -124,11 +124,15 @@ impl CompiledProgramBuilder {
 
         let insc_pos = self.program.inscs.len();
         self.program.inscs.push_byte(OpCode::FuncCall as u8);
-        self.program.inscs.push_byte(args.len() as u8);
-        self.program.inscs.push_byte(rets.len() as u8);
+        self.program.inscs.push_byte(0);
 
-        let padding = (args.len() * 4 + rets.len() * 4) % 8;
-        self.program.inscs.push_byte(padding as u8);
+        let mut need_pad = false;
+        let mut insc_size = 8 + args.len() * 4 + rets.len() * 4;
+        if insc_size % 8 != 0 {
+            insc_size += 4;
+            need_pad = true;
+        }
+        self.program.inscs.push_u16(insc_size as u16);
 
         unsafe { self.program.inscs.push_zero_bytes(4); }
 
@@ -138,7 +142,9 @@ impl CompiledProgramBuilder {
         for ret in rets {
             self.program.inscs.push_u32(*ret);
         }
-        unsafe { self.program.inscs.push_zero_bytes(padding); }
+        if need_pad {
+            unsafe { self.program.inscs.push_zero_bytes(4); }
+        }
 
         self.incomplete_calls.push((insc_pos as u32, func_name.to_string()));
     }

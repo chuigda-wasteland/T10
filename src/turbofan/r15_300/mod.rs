@@ -39,10 +39,6 @@ impl R15_300 {
 
         loop {
             let insc = program.inscs.read_byte(insc_ptr);
-
-            #[cfg(debug_assertions)]
-            eprintln!("INSC[{:02x}] = {:02x}", insc_ptr, insc);
-
             let insc = transmute::<u8, OpCode>(insc);
             match insc {
                 OpCode::MakeIntConst => {
@@ -131,27 +127,25 @@ impl R15_300 {
                     insc_ptr = dest as usize;
                 },
                 OpCode::FuncCall => {
-                    let arg_count = program.inscs.read_byte(insc_ptr + 1) as u32;
-                    let ret_count = program.inscs.read_byte(insc_ptr + 2) as u32;
-                    let padding = program.inscs.read_byte(insc_ptr + 3) as u32;
+                    let insc_size = program.inscs.read_u16(insc_ptr + 2);
                     let func_id = program.inscs.read_u32(insc_ptr + 4);
 
                     let func_info = *program.funcs.get_unchecked(func_id as usize);
 
                     let arg_values = std::slice::from_raw_parts::<u32>(
                         program.inscs.offset_ptr(insc_ptr + 8),
-                        arg_count as usize
+                        func_info.arg_count as usize
                     );
                     let ret_values_locs = std::slice::from_raw_parts::<u32>(
-                        program.inscs.offset_ptr(insc_ptr + 8 + (arg_count * 4) as usize),
-                        ret_count as usize
+                        program.inscs.offset_ptr(insc_ptr + 8 + (func_info.arg_count * 4) as usize),
+                        func_info.ret_count as usize
                     );
 
                     slice = stack.func_call_grow_stack(
                         func_info.stack_size,
                         arg_values,
                         ret_values_locs,
-                        (insc_ptr as u32) + 8 + arg_count * 4 + ret_count * 4 + padding
+                        insc_ptr as u32 + insc_size as u32
                     );
                     insc_ptr = func_info.start_addr as usize;
                 },

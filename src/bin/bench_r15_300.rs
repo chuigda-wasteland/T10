@@ -1,8 +1,8 @@
 use std::mem::MaybeUninit;
 use std::time::Instant;
 
-use t10::turbofan::r15_300::program::CompiledProgram;
 use t10::data::Value;
+use t10::turbofan::r15_300::program::CompiledProgram;
 use t10::turbofan::r15_300::R15_300;
 use t10::turbofan::r15_300::turbine::CompiledProgramBuilder;
 

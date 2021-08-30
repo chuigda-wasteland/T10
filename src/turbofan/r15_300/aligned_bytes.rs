@@ -100,6 +100,17 @@ impl AlignedBytes {
         self.len += count;
     }
 
+    #[inline] pub fn push_u16(&mut self, word: u16) {
+        if self.raw.cap - self.len < 4 {
+            unsafe { self.raw.extend2(); }
+        }
+
+        unsafe {
+            std::ptr::write(self.raw.ptr.as_ptr().offset(self.len as isize) as *mut u16, word);
+        }
+        self.len += 2;
+    }
+
     #[inline] pub fn push_u32(&mut self, dword: u32) {
         if self.raw.cap - self.len < 4 {
             unsafe { self.raw.extend2(); }
@@ -140,6 +151,12 @@ impl AlignedBytes {
     #[inline] pub unsafe fn read_byte(&self, pos: usize) -> u8 {
         debug_assert!(pos < self.len);
         std::ptr::read(self.raw.ptr.as_ptr().offset(pos as isize))
+    }
+
+    #[inline] pub unsafe fn read_u16(&self, pos: usize) -> u16 {
+        debug_assert!(pos < self.len);
+        debug_assert!(pos + 2 <= self.len);
+        std::ptr::read(self.raw.ptr.as_ptr().offset(pos as isize) as *mut u16 as *const _)
     }
 
     #[inline] pub unsafe fn read_u32(&self, pos: usize) -> u32 {
