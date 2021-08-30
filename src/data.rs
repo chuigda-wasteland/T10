@@ -231,7 +231,9 @@ pub union ValueTypedDataInner {
     /// 字符
     pub ch: char,
     /// 布尔
-    pub boolean: bool
+    pub boolean: bool,
+    /// 内部表示
+    pub repr: u64
 }
 
 #[derive(Copy, Clone)]

@@ -136,21 +136,26 @@ impl AlignedBytes {
         std::ptr::write(self.raw.ptr.as_ptr().offset(pos as isize) as *mut u64, qword);
     }
 
-    #[inline] pub unsafe fn read_byte(&mut self, pos: usize) -> u8 {
+    #[inline] pub unsafe fn read_byte(&self, pos: usize) -> u8 {
         debug_assert!(pos < self.len);
         std::ptr::read(self.raw.ptr.as_ptr().offset(pos as isize))
     }
 
-    #[inline] pub unsafe fn read_u32(&mut self, pos: usize) -> u32 {
+    #[inline] pub unsafe fn read_u32(&self, pos: usize) -> u32 {
         debug_assert!(pos < self.len);
         debug_assert!(pos + 4 <= self.len);
         std::ptr::read(self.raw.ptr.as_ptr().offset(pos as isize) as *mut u32 as *const _)
     }
 
-    #[inline] pub unsafe fn read_u64(&mut self, pos: usize) -> u64 {
+    #[inline] pub unsafe fn read_u64(&self, pos: usize) -> u64 {
         debug_assert!(pos < self.len);
         debug_assert!(pos + 8 <= self.len);
         std::ptr::read(self.raw.ptr.as_ptr().offset(pos as isize) as *mut u64 as *const _)
+    }
+
+    #[inline] pub unsafe fn offset_ptr<T>(&self, offset: usize) -> *const T {
+        debug_assert!(offset < self.len);
+        self.raw.ptr.as_ptr().offset(offset as isize) as *const u8 as *const _
     }
 
     #[cfg(debug_assertions)]
