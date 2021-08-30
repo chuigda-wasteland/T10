@@ -167,4 +167,13 @@ impl AlignedBytes {
 
     #[cfg(not(debug_assertions))]
     #[inline(always)] pub fn assert_aligned(&self, _alignment: usize) {}
+
+    pub fn dump(&self) {
+        for i in 0..self.len {
+            if i != 0 && i % 16 == 0 {
+                eprint!("\n");
+            }
+            eprint!("{:02X} ", unsafe { self.read_byte(i) });
+        }
+    }
 }

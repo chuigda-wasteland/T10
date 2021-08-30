@@ -39,13 +39,17 @@ impl R15_300 {
 
         loop {
             let insc = program.inscs.read_byte(insc_ptr);
+
+            #[cfg(debug_assertions)]
+            eprintln!("INSC[{:02x}] = {:02x}", insc_ptr, insc);
+
             let insc = transmute::<u8, OpCode>(insc);
             match insc {
                 OpCode::MakeIntConst => {
                     let dest = program.inscs.read_u32(insc_ptr + 4);
                     let data = program.inscs.read_u64(insc_ptr + 8);
                     slice.set_value(dest, Value::from(transmute::<u64, i64>(data)));
-                    insc_ptr += 8;
+                    insc_ptr += 16;
                 },
                 OpCode::IntAdd => {
                     let dest = program.inscs.read_u32(insc_ptr + 4);

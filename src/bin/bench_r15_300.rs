@@ -22,7 +22,7 @@ fn fib35_program() -> CompiledProgram {
 
     builder.int_sub(2, 0, 1);
     builder.make_int_const(2, 1);
-    builder.int_sub(2, 0, 1);
+    builder.int_sub(3, 0, 1);
     builder.func_call_dangle("fibonacci", &[2], &[2]);
     builder.func_call_dangle("fibonacci", &[3], &[3]);
     builder.int_add(2, 2, 3);
