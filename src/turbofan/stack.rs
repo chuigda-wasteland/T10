@@ -50,7 +50,7 @@ pub struct FrameInfo<'a> {
 }
 
 impl<'a> FrameInfo<'a> {
-    pub fn new(
+    #[inline(always)] pub fn new(
         frame_start: u32, frame_end: u32, ret_value_locs: &'a [u32], ret_addr: u32
     ) -> Self {
         Self {
@@ -92,7 +92,7 @@ impl<'a> Stack<'a> {
         StackSlice(&mut self.values[..] as *mut [MaybeUninit<Value>])
     }
 
-    pub unsafe fn func_call_grow_stack(
+    #[inline(always)] pub unsafe fn func_call_grow_stack(
         &mut self,
         frame_size: u32,
         arg_locs: &[u32],
@@ -125,7 +125,7 @@ impl<'a> Stack<'a> {
         new_slice
     }
 
-    pub unsafe fn done_func_call_shrink_stack(
+    #[inline(always)] pub unsafe fn done_func_call_shrink_stack(
         &mut self,
         ret_values: &[u32]
     ) -> Option<(StackSlice, u32)> {
@@ -160,7 +160,7 @@ impl<'a> Stack<'a> {
         Some((prev_slice, ret_addr))
     }
 
-    pub unsafe fn done_func_call_shrink_stack1(
+    #[inline(always)] pub unsafe fn done_func_call_shrink_stack1(
         &mut self,
         ret_value: u32
     ) -> Option<(StackSlice, u32)> {
