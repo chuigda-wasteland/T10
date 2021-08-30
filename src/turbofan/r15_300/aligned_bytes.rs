@@ -97,6 +97,7 @@ impl AlignedBytes {
             self.raw.extend2();
         }
         std::ptr::write_bytes(self.raw.ptr.as_ptr().offset(self.len as isize), 0, count);
+        self.len += count;
     }
 
     #[inline] pub fn push_u32(&mut self, dword: u32) {

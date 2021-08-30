@@ -84,6 +84,10 @@ impl CompiledProgramBuilder {
         self.gen_3ac(OpCode::IntSub as u8, dest, src1, src2);
     }
 
+    pub fn int_eq(&mut self, dest: u32, src1: u32, src2: u32) {
+        self.gen_3ac(OpCode::IntEq as u8, dest, src1, src2);
+    }
+
     pub fn incr(&mut self, pos: u32) {
         self.program.inscs.assert_aligned(8);
 
